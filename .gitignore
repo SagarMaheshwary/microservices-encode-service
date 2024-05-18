@@ -1,0 +1,5 @@
+tmp/
+internal/assets/videos/*
+!internal/assets/videos/.gitkeep
+
+.env
