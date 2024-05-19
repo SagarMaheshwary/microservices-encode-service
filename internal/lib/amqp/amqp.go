@@ -58,7 +58,7 @@ func ListenForMessages() {
 	messages, err := Channel.Consume(
 		q.Name, // queue
 		"",     // consumer
-		true,   // auto-ack
+		false,  // auto-ack
 		false,  // exclusive
 		false,  // no-local
 		false,  // no-wait
@@ -84,15 +84,19 @@ func ListenForMessages() {
 
 					if !ok {
 						log.Error("Invalid message data %v", message.Body)
-						continue
+						break
 					}
 
-					qh.HandleProcessUploadedVideo(&qh.ProcessUploadedVideoPayload{
+					err := qh.HandleProcessUploadedVideo(&qh.ProcessUploadedVideoPayload{
 						UploadId:    data["upload_id"].(string),
 						Title:       data["title"].(string),
 						Description: data["description"].(string),
 						PublishedAt: data["published_at"].(string),
 					})
+
+					if err == nil {
+						message.Ack(false)
+					}
 				}
 			}
 		}

@@ -2,6 +2,7 @@ package aws
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"os"
 
@@ -91,6 +92,40 @@ func PutFileToS3(path string, uploadPath string) error {
 
 	if err != nil {
 		log.Error("File upload failed %v", err)
+
+		return err
+	}
+
+	return nil
+}
+
+func DownloadFileFromS3(filename string, downloadPath string) error {
+	res, err := GetFileFromS3(filename)
+
+	if err != nil {
+		return err
+	}
+
+	bytes, err := io.ReadAll(res.Body)
+
+	if err != nil {
+		log.Error("Unable to read file bytes %v", err)
+
+		return err
+	}
+
+	f, err := os.Create(downloadPath)
+
+	if err != nil {
+		log.Error("Unable to create file %v", err)
+
+		return err
+	}
+
+	_, err = f.Write(bytes)
+
+	if err != nil {
+		log.Error("Unable to write to file %v", err)
 
 		return err
 	}

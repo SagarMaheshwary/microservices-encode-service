@@ -2,14 +2,13 @@ package queue_handler
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"strings"
 
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/helper"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/aws"
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/ffmpeg"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/encode"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
 )
 
@@ -20,36 +19,24 @@ type ProcessUploadedVideoPayload struct {
 	PublishedAt string `json:"published_at"`
 }
 
-// @TODO: If the uploaded video doesn't fit to any resolution scale then choose a lower resolution
-var Resolutions = map[string][]map[string]string{
-	"1920x1080": {
-		{"resolution": "1920x1080", "bitrate": "750k", "segment_time": "3"},
-		{"resolution": "1280x720", "bitrate": "500k", "segment_time": "5"},
-		{"resolution": "854x480", "bitrate": "250k", "segment_time": "7"},
-		{"resolution": "640x360", "bitrate": "100k", "segment_time": "10"},
-		{"resolution": "320x180", "bitrate": "50k", "segment_time": "10"},
-	},
-	"1280x720": {
-		{"resolution": "1280x720", "bitrate": "500k", "segment_time": "5"},
-		{"resolution": "854x480", "bitrate": "250k", "segment_time": "7"},
-		{"resolution": "640x360", "bitrate": "100k", "segment_time": "10"},
-		{"resolution": "320x180", "bitrate": "50k", "segment_time": "10"},
-	},
-	"854x480": {
-		// {"resolution": "854x480", "bitrate": "250k", "segment_time": "20"},
-		// {"resolution": "640x360", "bitrate": "100k", "segment_time": "20"},
-		{"resolution": "320x180", "bitrate": "50k", "segment_time": "20"},
-	},
-	"640x360": {
-		{"resolution": "640x360", "bitrate": "100k", "segment_time": "10"},
-		{"resolution": "320x180", "bitrate": "50k", "segment_time": "10"},
-	},
-	"320x180": {
-		{"resolution": "320x180", "bitrate": "50k", "segment_time": "10"},
-	},
+func Test() {
+	//create directory in assets/videos for current video process
+	//download video from s3 to local
+	//read video resolution
+
+	//LOOP START (loop over map values by video resolution)
+	//	create directory for video chunks
+	//	create chunks using ffmpeg
+	//	read chunks directory and list chunk files
+
+	//	LOOP START (loop over chunks list)
+	//		upload each chunk to s3
+	//	LOOP END
+
+	//LOOP END
 }
 
-func HandleProcessUploadedVideo(data *ProcessUploadedVideoPayload) {
+func HandleProcessUploadedVideo(data *ProcessUploadedVideoPayload) error {
 	log.Info("Data To Encode %v", data)
 
 	var err error
@@ -60,151 +47,90 @@ func HandleProcessUploadedVideo(data *ProcessUploadedVideoPayload) {
 	if err != nil {
 		log.Error("Unable to create directory for video %s", videoDirPath)
 
-		return
+		return err
 	}
 
 	videoPath := path.Join(videoDirPath, "original")
 
-	err = createFileFromS3(data.UploadId, videoPath)
+	err = aws.DownloadFileFromS3(data.UploadId, videoPath)
 
 	if err != nil {
-		return
+		return err
 	}
 
-	videoRes := ffmpeg.GetResolution(videoPath)
+	info := encode.GetVideoInfo(videoPath)
 
-	resolutions, ok := Resolutions[videoRes]
+	encodeFrom := encode.GetVideoEncodeOptionsIndex(info.Width, info.Height)
 
-	if !ok {
-		log.Info("Video resolution does not match any supported resolutions.")
+	for i := encodeFrom; i < len(encode.VideoEncodeOptions); i++ {
+		opt := encode.VideoEncodeOptions[i]
 
-		return
-	}
+		chunkDir := path.Join(videoDirPath, fmt.Sprintf("chunks-%dx%d-%s", opt.Width, opt.Height, opt.BitRate))
 
-	for _, res := range resolutions {
-		chunkDir := path.Join(videoDirPath, fmt.Sprintf("chunks-%s-%s", res["resolution"], res["bitrate"]))
-
-		err = os.Mkdir(chunkDir, os.ModePerm)
+		err = createVideoChunksByResolution(videoPath, chunkDir, &opt)
 
 		if err != nil {
-			log.Error("Unable to create chunks directory for %s resolution", res["resolution"])
-
-			continue
+			return err
 		}
 
-		chunkPrefix := fmt.Sprintf("chunk-%s-%s", res["resolution"], res["bitrate"])
-		chunkFile := path.Join(chunkDir, strings.Join([]string{chunkPrefix, "%03d.webm"}, "-"))
-
-		ffmpeg.EncodeVideo(videoPath, chunkFile, &ffmpeg.EncodeVideoArgs{
-			Codec:                "libvpx-vp9",
-			Format:               "segment",
-			KeyFramesIntervalMin: 150,
-			GroupOfPictures:      150,
-			TileColumns:          4,
-			FrameParallel:        1,
-			Resolution:           strings.Replace(res["resolution"], "x", ":", 1),
-			DisableAudio:         true,
-			Bitrate:              res["bitrate"],
-			SegmentTime:          res["segment_time"],
-			MOVFlags:             "+faststart",
-		})
-
-		files, err := os.ReadDir(chunkDir)
+		err = uploadChunksToS3(data.UploadId, chunkDir)
 
 		if err != nil {
-			log.Info("Unable to read chunks dir %s", chunkDir)
-
-			return
+			return err
 		}
 
-		for _, f := range files {
-			log.Info("File Name %s", f.Name())
-
-			aws.PutFileToS3(path.Join(chunkDir, f.Name()), path.Join(data.UploadId, f.Name()))
-		}
-
-		log.Info("Processed chunks for %s resolution", res["resolution"])
+		log.Info("Processed chunks for %s", chunkDir)
 	}
 
-	log.Info("ENCODING FINISHED")
+	log.Info("Video encoding completed")
 
-	// return
+	//publish message to video catalog service
 
-	// pathPrefix := path.Join(helper.RootDir(), "..", "..")
-	// uploadPath := path.Join(videoDirPath, "videos-temp", data.UploadId)
-	// chunkDir := path.Join(videoDirPath, "videos", data.UploadId)
-
-	//read video resolution
-	//create chunks for each resolution
-
-	//FILE CREATED ----
-
-	//create dir for chunks
-	// err = os.Mkdir(chunkDir, os.FileMode(fs.ModePerm))
-
-	// if err != nil {
-	// 	log.Error("Create dir failed %v", err)
-
-	// 	return
-	// }
-
-	//Encode file into multiple formats: 480p, 720p, 1080p
-
-	// in := uploadPath
-	// out := path.Join(videoDirPath, data.UploadId, "video_640x360_250k_%03d.webm")
-
-	// entries, err := os.ReadDir(path.Join(videoDirPath, data.UploadId))
-
-	// if err != nil {
-	// 	log.Error("Failed to read directory %v", err)
-	// }
-
-	// for _, e := range entries {
-	// 	log.Info("NAME: %s", e.Name())
-	// }
-
-	//Encode videos into chunks
-	//List directory where chunks are stored
-	//Upload these files to s3
-	//Publish a message via rabbitmq
-
-	//Create chunks of each video
-	//Upload them to S3
-	//Publish video metadata to a queue (for video catalog service)
+	return nil
 }
 
-func createFileFromS3(key string, videoPath string) error {
-	res, err := aws.GetFileFromS3(key)
-
-	log.Info("S3 file read %v", res.ContentType)
+func createVideoChunksByResolution(videoPath string, chunkDir string, opt *encode.VideoEncodeOption) error {
+	err := os.Mkdir(chunkDir, os.ModePerm)
 
 	if err != nil {
+		log.Error("Unable to create chunks directory for %dx%d resolution", opt.Width, opt.Height)
+
 		return err
 	}
 
-	s3objectBytes, err := io.ReadAll(res.Body)
+	chunkPrefix := fmt.Sprintf("chunk-%dx%d-%s", opt.Width, opt.Height, opt.BitRate)
+	chunkFile := path.Join(chunkDir, strings.Join([]string{chunkPrefix, "%03d.webm"}, "-"))
 
-	log.Info("Reading bytes")
+	encode.CreateVideoChunks(videoPath, chunkFile, &encode.EncodeVideoArgs{
+		Codec:                "libvpx-vp9",
+		Format:               "segment",
+		KeyFramesIntervalMin: 150,
+		GroupOfPictures:      150,
+		TileColumns:          4,
+		FrameParallel:        1,
+		Resolution:           fmt.Sprintf("%d:%d", opt.Width, opt.Height),
+		DisableAudio:         true,
+		Bitrate:              opt.BitRate,
+		SegmentTime:          opt.SegmentTime,
+		MOVFlags:             "+faststart",
+	})
+
+	return nil
+}
+
+func uploadChunksToS3(uploadPathPrefix string, chunkDir string) error {
+	files, err := os.ReadDir(chunkDir)
 
 	if err != nil {
-		log.Error("Unable to read file bytes %v", err)
+		log.Info("Unable to read chunks dir %s", chunkDir)
+
 		return err
 	}
 
-	f, err := os.Create(videoPath)
+	for _, f := range files {
+		log.Info("File Name %s", f.Name())
 
-	log.Info("File created %v", f)
-
-	if err != nil {
-		log.Error("Unable to create file %v", err)
-		return err
-	}
-
-	_, err = f.Write(s3objectBytes)
-
-	if err != nil {
-		log.Error("Unable to write to file %v", err)
-		return err
+		aws.PutFileToS3(path.Join(chunkDir, f.Name()), path.Join(uploadPathPrefix, f.Name()))
 	}
 
 	return nil

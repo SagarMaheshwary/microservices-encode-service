@@ -1,9 +1,9 @@
-package ffmpeg
+package encode
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
-	"strings"
 
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
 	ffmpeglib "github.com/u2takey/ffmpeg-go"
@@ -28,7 +28,55 @@ type EncodeAudioArgs struct {
 	Bitrate string
 }
 
-func EncodeVideo(inPath string, outPath string, args *EncodeVideoArgs) error {
+type VideoInfo struct {
+	CodecName string `json:"codec_name"`
+	BitRate   string `json:"bit_rate"`
+	Height    int    `json:"height"`
+	Width     int    `json:"width"`
+	Duration  string `json:"duration"`
+}
+
+type VideoEncodeOption struct {
+	Width       int
+	Height      int
+	BitRate     string
+	SegmentTime string
+}
+
+var VideoEncodeOptions = []VideoEncodeOption{
+	{
+		Width:       1920,
+		Height:      1080,
+		BitRate:     "750k",
+		SegmentTime: "3",
+	},
+	{
+		Width:       1280,
+		Height:      720,
+		BitRate:     "500k",
+		SegmentTime: "5",
+	},
+	{
+		Width:       854,
+		Height:      480,
+		BitRate:     "250k",
+		SegmentTime: "7",
+	},
+	{
+		Width:       640,
+		Height:      360,
+		BitRate:     "100k",
+		SegmentTime: "10",
+	},
+	{
+		Width:       320,
+		Height:      180,
+		BitRate:     "50k",
+		SegmentTime: "10",
+	},
+}
+
+func CreateVideoChunks(inPath string, outPath string, args *EncodeVideoArgs) error {
 	outArgs := ffmpeglib.KwArgs{
 		"c:v":              args.Codec,
 		"keyint_min":       args.KeyFramesIntervalMin,
@@ -67,34 +115,36 @@ func EncodeAudio(inPath string, outPath string, args *EncodeAudioArgs) {
 	ffmpeglib.Input(inPath).Output(outPath, outArgs).ErrorToStdOut().Run()
 }
 
-func GetResolution(in string) string {
-	args := []string{"-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=s=x:p=0", in}
+func GetVideoInfo(in string) *VideoInfo {
+	args := []string{"-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,duration,codec_name,bit_rate", "-of", "json", in}
 	out, err := exec.Command("ffprobe", args...).Output()
 
 	if err != nil {
 		log.Error("Command failed %v", err)
 	}
 
-	log.Info("Resolution: %s", out)
+	log.Info("Resolution Raw: %s", out)
 
-	return strings.Replace(string(out), "\n", "", 1)
+	type FileOutput struct {
+		Programs []any       `json:"programs"`
+		Streams  []VideoInfo `json:"streams"`
+	}
+
+	m := new(FileOutput)
+
+	json.Unmarshal([]byte(out), &m)
+
+	log.Info("Resolution: %v", m)
+
+	return &m.Streams[0]
 }
 
-// ffmpeglib.Input(path.Join(helper.RootDir(), "..", "..", "test-video.MP4")).
-// 	Output(
-// 		path.Join(helper.RootDir(), "..", "..", "out-video.webm"),
-// 		ffmpeglib.KwArgs{
-// 			"c:v":            "libvpx-vp9", //codec lib
-// 			"keyint_min":     150,
-// 			"g":              150,
-// 			"tile-columns":   4,
-// 			"frame-parallel": 1,
-// 			"f":              "webm", //format
-// 			"dash":           1,
-// 			"an":             "",
-// 			"vf":             "scale=1280:720", //resolution
-// 			"b:v":            "250k",           //video bitrate
-// 		},
-// 	).
-// 	ErrorToStdOut().
-// 	Run()
+func GetVideoEncodeOptionsIndex(width int, height int) int {
+	for i, v := range VideoEncodeOptions {
+		if v.Width <= width && v.Height <= height {
+			return i
+		}
+	}
+
+	return 0
+}
