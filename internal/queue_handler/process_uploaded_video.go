@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strings"
 
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/helper"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/aws"
@@ -65,15 +64,34 @@ func HandleProcessUploadedVideo(data *ProcessUploadedVideoPayload) error {
 	for i := encodeFrom; i < len(encode.VideoEncodeOptions); i++ {
 		opt := encode.VideoEncodeOptions[i]
 
-		chunkDir := path.Join(videoDirPath, fmt.Sprintf("chunks-%dx%d-%s", opt.Width, opt.Height, opt.BitRate))
+		encodedVideoPath := path.Join(videoDirPath, fmt.Sprintf("%dx%d-%s.%s", opt.Width, opt.Height, opt.VideoBitRate, opt.Format))
+		chunkDir := path.Join(videoDirPath, fmt.Sprintf("chunks-%dx%d-%s", opt.Width, opt.Height, opt.VideoBitRate))
 
-		err = createVideoChunksByResolution(videoPath, chunkDir, &opt)
+		err = encodeVideoToResolution(videoPath, encodedVideoPath, &opt)
 
 		if err != nil {
 			return err
 		}
 
-		err = uploadChunksToS3(data.UploadId, chunkDir)
+		err = os.Mkdir(chunkDir, os.ModePerm)
+
+		if err != nil {
+			log.Error("unable to create directory %s", chunkDir)
+
+			return err
+		}
+
+		dashPath := path.Join(chunkDir, "output.mpd")
+
+		err = encodeVideoToDash(encodedVideoPath, dashPath, &opt)
+
+		if err != nil {
+			return err
+		}
+
+		uploadPrefix := path.Join(data.UploadId, fmt.Sprintf("chunks-%dx%d-%s", opt.Width, opt.Height, opt.VideoBitRate))
+
+		err = uploadChunksToS3(uploadPrefix, chunkDir)
 
 		if err != nil {
 			return err
@@ -89,31 +107,33 @@ func HandleProcessUploadedVideo(data *ProcessUploadedVideoPayload) error {
 	return nil
 }
 
-func createVideoChunksByResolution(videoPath string, chunkDir string, opt *encode.VideoEncodeOption) error {
-	err := os.Mkdir(chunkDir, os.ModePerm)
+func encodeVideoToResolution(inPath string, outPath string, opt *encode.VideoEncodeOption) error {
+	err := encode.EncodeVideoToResolution(inPath, outPath, &encode.EncodeVideoToResolutionArgs{
+		VideoCodec:   opt.VideoCodec,
+		VideoBitRate: opt.VideoBitRate,
+		AudioCodec:   opt.AudioCodec,
+		AudioBitRate: opt.AudioBitRate,
+		Resolution:   fmt.Sprintf("%d:%d", opt.Width, opt.Height),
+	})
 
 	if err != nil {
-		log.Error("Unable to create chunks directory for %dx%d resolution", opt.Width, opt.Height)
-
 		return err
 	}
 
-	chunkPrefix := fmt.Sprintf("chunk-%dx%d-%s", opt.Width, opt.Height, opt.BitRate)
-	chunkFile := path.Join(chunkDir, strings.Join([]string{chunkPrefix, "%03d.webm"}, "-"))
+	return nil
+}
 
-	encode.CreateVideoChunks(videoPath, chunkFile, &encode.EncodeVideoArgs{
-		Codec:                "libvpx-vp9",
-		Format:               "segment",
-		KeyFramesIntervalMin: 150,
-		GroupOfPictures:      150,
-		TileColumns:          4,
-		FrameParallel:        1,
-		Resolution:           fmt.Sprintf("%d:%d", opt.Width, opt.Height),
-		DisableAudio:         true,
-		Bitrate:              opt.BitRate,
-		SegmentTime:          opt.SegmentTime,
-		MOVFlags:             "+faststart",
+func encodeVideoToDash(inPath string, outPath string, opt *encode.VideoEncodeOption) error {
+	err := encode.EncodeVideoToDash(inPath, outPath, &encode.EncodeVideoToDashArgs{
+		Copy:            "copy",
+		SegmentDuration: opt.SegmentTime,
+		UseTimeline:     1,
+		UseTemplate:     1,
 	})
+
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -130,7 +150,10 @@ func uploadChunksToS3(uploadPathPrefix string, chunkDir string) error {
 	for _, f := range files {
 		log.Info("File Name %s", f.Name())
 
-		aws.PutFileToS3(path.Join(chunkDir, f.Name()), path.Join(uploadPathPrefix, f.Name()))
+		filePath := path.Join(chunkDir, f.Name())
+		uploadId := path.Join(uploadPathPrefix, f.Name())
+
+		aws.PutFileToS3(filePath, uploadId)
 	}
 
 	return nil

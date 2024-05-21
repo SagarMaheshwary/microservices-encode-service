@@ -9,6 +9,21 @@ import (
 	ffmpeglib "github.com/u2takey/ffmpeg-go"
 )
 
+type EncodeVideoToResolutionArgs struct {
+	VideoCodec   string
+	AudioCodec   string
+	Resolution   string
+	AudioBitRate string
+	VideoBitRate string
+}
+
+type EncodeVideoToDashArgs struct {
+	Copy            string
+	SegmentDuration int
+	UseTimeline     int
+	UseTemplate     int
+}
+
 type EncodeVideoArgs struct {
 	Codec                string
 	KeyFramesIntervalMin int
@@ -37,43 +52,105 @@ type VideoInfo struct {
 }
 
 type VideoEncodeOption struct {
-	Width       int
-	Height      int
-	BitRate     string
-	SegmentTime string
+	Width        int
+	Height       int
+	VideoCodec   string
+	AudioCodec   string
+	VideoBitRate string
+	AudioBitRate string
+	SegmentTime  int
+	Format       string
 }
 
 var VideoEncodeOptions = []VideoEncodeOption{
 	{
-		Width:       1920,
-		Height:      1080,
-		BitRate:     "750k",
-		SegmentTime: "3",
+		Width:        1920,
+		Height:       1080,
+		VideoCodec:   "libvpx-vp9",
+		VideoBitRate: "1000k",
+		AudioCodec:   "vp9",
+		AudioBitRate: "192k",
+		SegmentTime:  3,
+		Format:       "webm",
 	},
 	{
-		Width:       1280,
-		Height:      720,
-		BitRate:     "500k",
-		SegmentTime: "5",
+		Width:        1280,
+		Height:       720,
+		VideoCodec:   "libvpx-vp9",
+		VideoBitRate: "750k",
+		AudioCodec:   "libvorbis",
+		AudioBitRate: "160k",
+		SegmentTime:  5,
+		Format:       "webm",
 	},
 	{
-		Width:       854,
-		Height:      480,
-		BitRate:     "250k",
-		SegmentTime: "7",
+		Width:        854,
+		Height:       480,
+		VideoCodec:   "libvpx-vp9",
+		VideoBitRate: "500k",
+		AudioCodec:   "libvorbis",
+		AudioBitRate: "128k",
+		SegmentTime:  7,
+		Format:       "webm",
 	},
 	{
-		Width:       640,
-		Height:      360,
-		BitRate:     "100k",
-		SegmentTime: "10",
+		Width:        640,
+		Height:       360,
+		VideoCodec:   "libvpx-vp9",
+		VideoBitRate: "250k",
+		AudioCodec:   "libvorbis",
+		AudioBitRate: "96k",
+		SegmentTime:  10,
+		Format:       "webm",
 	},
 	{
-		Width:       320,
-		Height:      180,
-		BitRate:     "50k",
-		SegmentTime: "10",
+		Width:        320,
+		Height:       180,
+		VideoCodec:   "libvpx-vp9",
+		VideoBitRate: "150k",
+		AudioCodec:   "libvorbis",
+		AudioBitRate: "48k",
+		SegmentTime:  10,
+		Format:       "webm",
 	},
+}
+
+func EncodeVideoToResolution(inPath string, outPath string, args *EncodeVideoToResolutionArgs) error {
+	outArgs := ffmpeglib.KwArgs{
+		"c:v": args.VideoCodec,
+		"vf":  fmt.Sprintf("scale=%s", args.Resolution),
+		"b:a": args.AudioBitRate,
+		"b:v": args.VideoBitRate,
+		"c:a": args.AudioCodec,
+	}
+
+	err := ffmpeglib.Input(inPath).Output(outPath, outArgs).OverWriteOutput().ErrorToStdOut().Run()
+
+	if err != nil {
+		log.Error("FFMPEG encode video to resolution failed %v", err)
+
+		return err
+	}
+
+	return nil
+}
+
+func EncodeVideoToDash(inPath string, outPath string, args *EncodeVideoToDashArgs) error {
+	outArgs := ffmpeglib.KwArgs{
+		"c":            args.Copy,
+		"f":            "dash",
+		"seg_duration": args.SegmentDuration,
+		"use_timeline": args.UseTimeline,
+		"use_template": args.UseTemplate,
+	}
+
+	err := ffmpeglib.Input(inPath).Output(outPath, outArgs).OverWriteOutput().ErrorToStdOut().Run()
+
+	if err != nil {
+		log.Error("FFMPEG encode video to dash failed %v", err)
+	}
+
+	return nil
 }
 
 func CreateVideoChunks(inPath string, outPath string, args *EncodeVideoArgs) error {
