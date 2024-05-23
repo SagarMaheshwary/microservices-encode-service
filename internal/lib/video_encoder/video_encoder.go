@@ -1,4 +1,4 @@
-package encode
+package video_encoder
 
 import (
 	"encoding/json"
@@ -22,25 +22,6 @@ type EncodeVideoToDashArgs struct {
 	SegmentDuration int
 	UseTimeline     int
 	UseTemplate     int
-}
-
-type EncodeVideoArgs struct {
-	Codec                string
-	KeyFramesIntervalMin int
-	GroupOfPictures      int
-	TileColumns          int
-	FrameParallel        int
-	Format               string
-	DisableAudio         bool
-	Resolution           string
-	Bitrate              string
-	SegmentTime          string
-	MOVFlags             string
-}
-
-type EncodeAudioArgs struct {
-	Codec   string
-	Bitrate string
 }
 
 type VideoInfo struct {
@@ -153,51 +134,14 @@ func EncodeVideoToDash(inPath string, outPath string, args *EncodeVideoToDashArg
 	return nil
 }
 
-func CreateVideoChunks(inPath string, outPath string, args *EncodeVideoArgs) error {
-	outArgs := ffmpeglib.KwArgs{
-		"c:v":              args.Codec,
-		"keyint_min":       args.KeyFramesIntervalMin,
-		"g":                args.GroupOfPictures,
-		"tile-columns":     args.TileColumns,
-		"frame-parallel":   args.FrameParallel,
-		"f":                args.Format,
-		"vf":               fmt.Sprintf("scale=%s", args.Resolution),
-		"b:v":              args.Bitrate,
-		"dash":             1,
-		"segment_time":     args.SegmentTime,
-		"movflags":         args.MOVFlags,
-		"reset_timestamps": 1,
-	}
-
-	if args.DisableAudio {
-		outArgs["an"] = ""
-	}
-
-	err := ffmpeglib.Input(inPath).Output(outPath, outArgs).OverWriteOutput().ErrorToStdOut().Run()
-
-	if err != nil {
-		log.Error("FFMPEG video encode failed %v", err)
-	}
-
-	return err
-}
-
-func EncodeAudio(inPath string, outPath string, args *EncodeAudioArgs) {
-	outArgs := ffmpeglib.KwArgs{
-		"acodec": args.Codec,
-		"ab":     args.Bitrate,
-		"dash":   1,
-	}
-
-	ffmpeglib.Input(inPath).Output(outPath, outArgs).ErrorToStdOut().Run()
-}
-
-func GetVideoInfo(in string) *VideoInfo {
+func GetVideoInfo(in string) (*VideoInfo, error) {
 	args := []string{"-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,duration,codec_name,bit_rate", "-of", "json", in}
 	out, err := exec.Command("ffprobe", args...).Output()
 
 	if err != nil {
 		log.Error("Command failed %v", err)
+
+		return nil, err
 	}
 
 	log.Info("Resolution Raw: %s", out)
@@ -213,7 +157,7 @@ func GetVideoInfo(in string) *VideoInfo {
 
 	log.Info("Resolution: %v", m)
 
-	return &m.Streams[0]
+	return &m.Streams[0], nil
 }
 
 func GetVideoEncodeOptionsIndex(width int, height int) int {

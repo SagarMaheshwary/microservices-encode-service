@@ -13,14 +13,8 @@ import (
 var conf *Config
 
 type Config struct {
-	GRPCServer *grpcServer
-	S3         *s3
-	AMQP       *amqp
-}
-
-type grpcServer struct {
-	Host string
-	Port int
+	S3   *s3
+	AMQP *amqp
 }
 
 type s3 struct {
@@ -46,12 +40,6 @@ func Init() {
 
 	log.Info("Loaded %q", envPath)
 
-	port, err := strconv.Atoi(Getenv("GRPC_PORT", "5002"))
-
-	if err != nil {
-		log.Error("Invalid GRPC_PORT value %v", err)
-	}
-
 	amqpPort, err := strconv.Atoi(Getenv("AMQP_PORT", "5672"))
 
 	if err != nil {
@@ -59,10 +47,6 @@ func Init() {
 	}
 
 	conf = &Config{
-		GRPCServer: &grpcServer{
-			Host: Getenv("GRPC_HOST", "localhost"),
-			Port: port,
-		},
 		S3: &s3{
 			Bucket:    Getenv("AWS_S3_BUCKET", ""),
 			Region:    Getenv("AWS_S3_REGION", ""),
@@ -76,10 +60,6 @@ func Init() {
 			Password: Getenv("AMQP_PASSWORD", "guest"),
 		},
 	}
-}
-
-func GetgrpcServer() *grpcServer {
-	return conf.GRPCServer
 }
 
 func GetS3() *s3 {

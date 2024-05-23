@@ -1,48 +1,23 @@
-package amqp
+package consumer
 
 import (
 	"encoding/json"
-	"fmt"
 
 	amqplib "github.com/rabbitmq/amqp091-go"
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/config"
 	cons "github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/handler"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
-	qh "github.com/sagarmaheshwary/microservices-encode-service/internal/queue_handler"
 )
 
-var Conn *amqplib.Connection
-var Channel *amqplib.Channel
+var C *Consumer
 
-type MessageType struct {
-	Key  string `json:"key"`
-	Data any    `json:"data"`
+type Consumer struct {
+	channel *amqplib.Channel
 }
 
-func Connect() {
-	c := config.Getamqp()
-
-	address := fmt.Sprintf("amqp://%s:%s@%s:%d", c.Username, c.Password, c.Host, c.Port)
-
-	var err error
-
-	Conn, err = amqplib.Dial(address)
-
-	if err != nil {
-		log.Error("AMQP connection error %v", err)
-	}
-
-	Channel, err = Conn.Channel()
-
-	if err != nil {
-		log.Error("AMQP channel error %v", err)
-	}
-
-	log.Info("AMQP connected on %q", address)
-}
-
-func ListenForMessages() {
-	q, err := Channel.QueueDeclare(
+func (c *Consumer) Consume() {
+	q, err := c.channel.QueueDeclare(
 		cons.QueueEncodeService, // name
 		true,                    // durable
 		false,                   // delete when unused
@@ -55,7 +30,7 @@ func ListenForMessages() {
 		log.Error("AMQP queue error %v", err)
 	}
 
-	messages, err := Channel.Consume(
+	messages, err := c.channel.Consume(
 		q.Name, // queue
 		"",     // consumer
 		false,  // auto-ack
@@ -69,11 +44,13 @@ func ListenForMessages() {
 		log.Fatal("AMQP queue listen failed %v", err)
 	}
 
+	log.Info("Broker listening on queue %q", cons.QueueEncodeService)
+
 	var forever chan struct{}
 
 	go func() {
 		for message := range messages {
-			s := MessageType{}
+			s := broker.MessageType{}
 			json.Unmarshal(message.Body, &s)
 			log.Info("Message received %#v", s.Data)
 
@@ -87,7 +64,7 @@ func ListenForMessages() {
 						break
 					}
 
-					err := qh.HandleProcessUploadedVideo(&qh.ProcessUploadedVideoPayload{
+					err := handler.HandleProcessUploadedVideo(&handler.ProcessUploadedVideoPayload{
 						UploadId:    data["upload_id"].(string),
 						Title:       data["title"].(string),
 						Description: data["description"].(string),
@@ -103,4 +80,10 @@ func ListenForMessages() {
 	}()
 
 	<-forever
+}
+
+func Init(channel *amqplib.Channel) *Consumer {
+	C = &Consumer{channel: channel}
+
+	return C
 }
