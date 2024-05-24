@@ -15,70 +15,33 @@ import (
 	ve "github.com/sagarmaheshwary/microservices-encode-service/internal/lib/video_encoder"
 )
 
-type ProcessUploadedVideoPayload struct {
+type VideoUploadedPayload struct {
 	UploadId    string `json:"upload_id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	PublishedAt string `json:"published_at"`
 }
 
-type UploadedVideo struct {
-	Title       string                  `json:"title"`
-	Description string                  `json:"description"`
-	PublishedAt string                  `json:"published_at"`
-	Height      int                     `json:"height"`
-	Width       int                     `json:"width"`
-	Duration    int                     `json:"duration"`
-	Encodings   []UploadedVideoEncoding `json:"encodings"`
+type EncodedVideo struct {
+	Title       string                   `json:"title"`
+	Description string                   `json:"description"`
+	PublishedAt string                   `json:"published_at"`
+	Height      int                      `json:"height"`
+	Width       int                      `json:"width"`
+	Duration    int                      `json:"duration"`
+	Resolutions []EncodedVideoResolution `json:"resolutions"`
 }
 
-type UploadedVideoEncoding struct {
+type EncodedVideoResolution struct {
 	Height int      `json:"height"`
 	Width  int      `json:"width"`
 	Codec  string   `json:"codec"`
 	Chunks []string `json:"chunks"`
 }
 
-func Test() {
-	/*
-		{
-		  "id": "video-id",
-		  "title": "Video Title",
-		  "description": "This is description.",
-		  "resolution": "",
-		  "duration": "",
-		  "published_at": "",
-		  "encodings": [
-		    {
-		      "resolution": "854x480",
-		      "encoding": "vp9",
-		      "chunks": ["video-id/854x480-250k/chunk-file-name"]
-		    }
-		  ]
-		}
-	*/
-
-	//create directory in assets/videos for current video process
-	//download video from s3 to local
-	//read video resolution
-
-	//LOOP START (loop over map values by video resolution)
-	//	create directory for video chunks
-	//	create chunks using ffmpeg
-	//	read chunks directory and list chunk files
-
-	//	LOOP START (loop over chunks list)
-	//		upload each chunk to s3
-	//	LOOP END
-
-	//LOOP END
-}
-
-func HandleProcessUploadedVideo(data *ProcessUploadedVideoPayload) error {
-	log.Info("Data To Encode %v", data)
-
+func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 	var err error
-	var uploadedVideoEncodings []UploadedVideoEncoding
+	var encodedVideoResolutions []EncodedVideoResolution
 
 	videoDirPath := path.Join(helper.RootDir(), "assets", "videos", data.UploadId)
 
@@ -124,7 +87,7 @@ func HandleProcessUploadedVideo(data *ProcessUploadedVideoPayload) error {
 			return err
 		}
 
-		uploadedVideoEncodings = append(uploadedVideoEncodings, UploadedVideoEncoding{
+		encodedVideoResolutions = append(encodedVideoResolutions, EncodedVideoResolution{
 			Height: opt.Height,
 			Width:  opt.Width,
 			Codec:  opt.VideoCodec,
@@ -138,16 +101,16 @@ func HandleProcessUploadedVideo(data *ProcessUploadedVideoPayload) error {
 
 	duration, _ := strconv.Atoi(info.Duration)
 
-	err = publisher.P.Publish(cons.QueueEncodeService, &broker.MessageType{
-		Key: cons.MessageTypeEncodeUploadedVideo,
-		Data: &UploadedVideo{
+	err = publisher.P.Publish(cons.QueueVideoCatalogService, &broker.MessageType{
+		Key: cons.MessageTypeVideoEncodingCompleted,
+		Data: &EncodedVideo{
 			Title:       data.Title,
 			Description: data.Description,
 			PublishedAt: data.PublishedAt,
 			Height:      info.Height,
 			Width:       info.Width,
 			Duration:    duration,
-			Encodings:   uploadedVideoEncodings,
+			Resolutions: encodedVideoResolutions,
 		},
 	})
 
@@ -211,7 +174,7 @@ func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error
 		return chunks, err
 	}
 
-	for _, f := range files {
+	for i, f := range files {
 		log.Info("File Name %s", f.Name())
 
 		filePath := path.Join(chunkDir, f.Name())
@@ -223,7 +186,7 @@ func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error
 			return chunks, err
 		}
 
-		chunks = append(chunks, uploadId)
+		chunks[i] = uploadId
 	}
 
 	return chunks, nil

@@ -52,7 +52,8 @@ func (c *Consumer) Consume() {
 		for message := range messages {
 			s := broker.MessageType{}
 			json.Unmarshal(message.Body, &s)
-			log.Info("Message received %#v", s.Data)
+
+			log.Info("Message received %q: %v", s.Key, s.Data)
 
 			switch s.Key {
 			case cons.MessageTypeEncodeUploadedVideo:
@@ -64,7 +65,7 @@ func (c *Consumer) Consume() {
 						break
 					}
 
-					err := handler.HandleProcessUploadedVideo(&handler.ProcessUploadedVideoPayload{
+					err := handler.ProcessVideoUploaded(&handler.VideoUploadedPayload{
 						UploadId:    data["upload_id"].(string),
 						Title:       data["title"].(string),
 						Description: data["description"].(string),

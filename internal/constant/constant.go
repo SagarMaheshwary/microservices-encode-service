@@ -1,9 +1,11 @@
 package constant
 
 const (
-	QueueEncodeService = "EncodeService"
+	QueueEncodeService       = "EncodeService"
+	QueueVideoCatalogService = "VideoCatalogService"
 )
 
 const (
-	MessageTypeEncodeUploadedVideo = "EncodeUploadedVideo"
+	MessageTypeEncodeUploadedVideo    = "EncodeUploadedVideo"
+	MessageTypeVideoEncodingCompleted = "VideoEncodingCompleted"
 )
