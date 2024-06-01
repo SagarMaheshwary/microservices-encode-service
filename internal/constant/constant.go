@@ -19,5 +19,9 @@ const (
 	ProtocolAMQP = "amqp"
 )
 
-const RawVideosDirectory = "raw-videos"
-const EncodedVideosDirectory = "encoded-videos"
+const (
+	S3RawVideosDirectory     = "raw-videos"
+	S3EncodedVideosDirectory = "encoded-videos"
+)
+
+const TempVideosDownloadDirectory = "assets/videos"

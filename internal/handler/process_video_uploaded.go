@@ -45,8 +45,8 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 	var err error
 	var encodedVideoResolutions []EncodedVideoResolution
 
-	videoDirPath := path.Join(helper.RootDir(), "assets", "videos", data.UploadId)
-	objectKey := fmt.Sprintf("%s/%s", cons.RawVideosDirectory, data.UploadId)
+	videoDirPath := path.Join(helper.RootDir(), cons.TempVideosDownloadDirectory, data.UploadId)
+	objectKey := fmt.Sprintf("%s/%s", cons.S3RawVideosDirectory, data.UploadId)
 
 	videoPath, err := downloadFileFromS3(videoDirPath, objectKey)
 
@@ -68,7 +68,7 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 		filePrefix := fmt.Sprintf("%dx%d-%s", opt.Width, opt.Height, opt.VideoBitRate)
 
 		encodedVideoPath := path.Join(videoDirPath, fmt.Sprintf("%s.%s", filePrefix, opt.Format))
-		chunkDir := path.Join(videoDirPath, fmt.Sprintf("chunks-%s", filePrefix))
+		chunkDir := path.Join(videoDirPath, filePrefix)
 
 		err = encodeVideoToResolution(videoPath, encodedVideoPath, &opt)
 
@@ -82,7 +82,7 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 			return err
 		}
 
-		uploadPrefix := path.Join(cons.EncodedVideosDirectory, data.UploadId, filePrefix)
+		uploadPrefix := path.Join(cons.S3EncodedVideosDirectory, data.UploadId, filePrefix)
 
 		chunks, err := uploadChunksToS3(uploadPrefix, chunkDir)
 
@@ -181,10 +181,10 @@ func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error
 	for i, f := range files {
 		log.Info("File Name %s", f.Name())
 
-		// filePath := path.Join(chunkDir, f.Name())
+		filePath := path.Join(chunkDir, f.Name())
 		uploadId := path.Join(uploadPathPrefix, f.Name())
 
-		// err := aws.UploadObjectToS3(filePath, uploadId)
+		err := aws.UploadObjectToS3(filePath, uploadId)
 
 		if err != nil {
 			return chunks, err
@@ -205,7 +205,7 @@ func downloadFileFromS3(dirPath string, filename string) (string, error) {
 		return "", err
 	}
 
-	videoPath := path.Join(dirPath, "original")
+	videoPath := path.Join(dirPath, helper.UniqueString(8))
 
 	err = aws.DownloadS3Object(filename, videoPath)
 
