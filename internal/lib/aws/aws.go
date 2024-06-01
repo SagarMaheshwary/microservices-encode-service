@@ -14,29 +14,74 @@ import (
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
 )
 
-func NewS3Session() (*s3.S3, error) {
+func NewSession() (*session.Session, error) {
 	c := config.GetS3()
 
-	sess, err := session.NewSession(&awslib.Config{
+	s, err := session.NewSession(&awslib.Config{
 		Region:      awslib.String(c.Region),
 		Credentials: credentials.NewStaticCredentials(c.AccessKey, c.SecretKey, ""),
 	})
 
 	if err != nil {
-		log.Error("Unable to create s3 session: %v", err)
+		log.Error("Unable to create aws session: %v", err)
 
 		return nil, err
 	}
 
-	svc := s3.New(sess)
-
-	return svc, nil
+	return s, nil
 }
 
-func GetFileFromS3(key string) (*s3.GetObjectOutput, error) {
+func UploadObjectToS3(filePath string, uploadPath string) error {
 	c := config.GetS3()
 
-	svc, err := NewS3Session()
+	sess, err := NewSession()
+
+	if err != nil {
+		return err
+	}
+
+	svc := s3.New(sess)
+
+	file, err := os.ReadFile(filePath)
+
+	if err != nil {
+		log.Error("Unable to read file for upload %v", err)
+
+		return err
+	}
+
+	fileStat, err := os.Stat(filePath)
+
+	if err != nil {
+		log.Error("Unable to read file stats %v", err)
+
+		return err
+	}
+
+	_, err = svc.PutObject(&s3.PutObjectInput{
+		Bucket:               awslib.String(c.Bucket),
+		Key:                  awslib.String(uploadPath),
+		Body:                 bytes.NewReader(file),
+		ContentLength:        awslib.Int64(fileStat.Size()),
+		ContentType:          awslib.String(http.DetectContentType(file)),
+		ContentDisposition:   awslib.String("attachment"),
+		ServerSideEncryption: awslib.String("AES256"),
+	})
+
+	if err != nil {
+		log.Error("File upload failed %v", err)
+
+		return err
+	}
+
+	return nil
+}
+
+func GetS3Object(key string) (*s3.GetObjectOutput, error) {
+	c := config.GetS3()
+
+	sess, err := NewSession()
+	svc := s3.New(sess)
 
 	if err != nil {
 		return nil, err
@@ -54,53 +99,8 @@ func GetFileFromS3(key string) (*s3.GetObjectOutput, error) {
 	return file, err
 }
 
-func PutFileToS3(path string, uploadPath string) error {
-	c := config.GetS3()
-
-	svc, err := NewS3Session()
-
-	if err != nil {
-		return err
-	}
-
-	file, err := os.ReadFile(path)
-
-	if err != nil {
-		log.Error("Unable to read file for upload %v", err)
-
-		return err
-	}
-
-	fileStat, err := os.Stat(path)
-
-	if err != nil {
-		log.Error("Unable to read file stats %v", err)
-
-		return err
-	}
-
-	_, err = svc.PutObject(&s3.PutObjectInput{
-		Bucket:               awslib.String(c.Bucket),
-		Key:                  awslib.String(uploadPath),
-		ACL:                  awslib.String("private"),
-		Body:                 bytes.NewReader(file),
-		ContentLength:        awslib.Int64(fileStat.Size()),
-		ContentType:          awslib.String(http.DetectContentType(file)),
-		ContentDisposition:   awslib.String("attachment"),
-		ServerSideEncryption: awslib.String("AES256"),
-	})
-
-	if err != nil {
-		log.Error("File upload failed %v", err)
-
-		return err
-	}
-
-	return nil
-}
-
-func DownloadFileFromS3(filename string, downloadPath string) error {
-	res, err := GetFileFromS3(filename)
+func DownloadS3Object(filename string, downloadPath string) error {
+	res, err := GetS3Object(filename)
 
 	if err != nil {
 		return err

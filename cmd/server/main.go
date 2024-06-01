@@ -18,7 +18,7 @@ func main() {
 	publishChan, err := broker.NewChannel()
 
 	if err != nil {
-		log.Fatal("Unable to create listen channel %v", err)
+		log.Fatal("Unable to create publish channel %v", err)
 	}
 
 	publisher.Init(publishChan)

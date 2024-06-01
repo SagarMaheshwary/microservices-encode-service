@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/gofor-little/env"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/helper"
@@ -25,10 +26,11 @@ type s3 struct {
 }
 
 type amqp struct {
-	Host     string
-	Port     int
-	Username string
-	Password string
+	Host           string
+	Port           int
+	Username       string
+	Password       string
+	PublishTimeout time.Duration
 }
 
 func Init() {
@@ -46,6 +48,12 @@ func Init() {
 		log.Error("Invalid AMQP_PORT value %v", err)
 	}
 
+	amqpPublishTimeout, err := strconv.Atoi(Getenv("AMQP_PUBLISH_TIMEOUT_SECONDS", "5"))
+
+	if err != nil {
+		log.Error("Invalid AMQP_PORT value %v", err)
+	}
+
 	conf = &Config{
 		S3: &s3{
 			Bucket:    Getenv("AWS_S3_BUCKET", ""),
@@ -54,10 +62,11 @@ func Init() {
 			SecretKey: Getenv("AWS_S3_SECRET_KEY", ""),
 		},
 		AMQP: &amqp{
-			Host:     Getenv("AMQP_HOST", "localhost"),
-			Port:     amqpPort,
-			Username: Getenv("AMQP_USERNAME", "guest"),
-			Password: Getenv("AMQP_PASSWORD", "guest"),
+			Host:           Getenv("AMQP_HOST", "localhost"),
+			Port:           amqpPort,
+			Username:       Getenv("AMQP_USERNAME", "guest"),
+			Password:       Getenv("AMQP_PASSWORD", "guest"),
+			PublishTimeout: time.Duration(amqpPublishTimeout) * time.Second,
 		},
 	}
 }

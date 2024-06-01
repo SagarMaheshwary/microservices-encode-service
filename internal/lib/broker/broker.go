@@ -5,6 +5,7 @@ import (
 
 	amqplib "github.com/rabbitmq/amqp091-go"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/config"
+	cons "github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
 )
 
@@ -18,14 +19,14 @@ type MessageType struct {
 func Connect() {
 	c := config.Getamqp()
 
-	address := fmt.Sprintf("amqp://%s:%s@%s:%d", c.Username, c.Password, c.Host, c.Port)
+	address := fmt.Sprintf("%s://%s:%s@%s:%d", cons.ProtocolAMQP, c.Username, c.Password, c.Host, c.Port)
 
 	var err error
 
 	Conn, err = amqplib.Dial(address)
 
 	if err != nil {
-		log.Error("AMQP connection error %v", err)
+		log.Fatal("AMQP connection error %v", err)
 	}
 
 	log.Info("AMQP connected on %q", address)

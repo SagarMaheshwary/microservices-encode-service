@@ -134,8 +134,19 @@ func EncodeVideoToDash(inPath string, outPath string, args *EncodeVideoToDashArg
 	return nil
 }
 
-func GetVideoInfo(in string) (*VideoInfo, error) {
-	args := []string{"-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,duration,codec_name,bit_rate", "-of", "json", in}
+func GetVideoInfo(inPath string) (*VideoInfo, error) {
+	args := []string{
+		"-v",
+		"error",
+		"-select_streams",
+		"v:0",
+		"-show_entries",
+		"stream=width,height,duration,codec_name,bit_rate",
+		"-of",
+		"json",
+		inPath,
+	}
+
 	out, err := exec.Command("ffprobe", args...).Output()
 
 	if err != nil {
@@ -143,8 +154,6 @@ func GetVideoInfo(in string) (*VideoInfo, error) {
 
 		return nil, err
 	}
-
-	log.Info("Resolution Raw: %s", out)
 
 	type FileOutput struct {
 		Programs []any       `json:"programs"`
@@ -155,12 +164,12 @@ func GetVideoInfo(in string) (*VideoInfo, error) {
 
 	json.Unmarshal([]byte(out), &m)
 
-	log.Info("Resolution: %v", m)
+	log.Info("Video %q Info: %v", inPath, m)
 
 	return &m.Streams[0], nil
 }
 
-func GetVideoEncodeOptionsIndex(width int, height int) int {
+func GetEncodingStartIndex(width int, height int) int {
 	for i, v := range VideoEncodeOptions {
 		if v.Width <= width && v.Height <= height {
 			return i

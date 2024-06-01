@@ -3,9 +3,9 @@ package publisher
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	amqplib "github.com/rabbitmq/amqp091-go"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/config"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
 )
@@ -17,22 +17,15 @@ type Publisher struct {
 }
 
 func (p *Publisher) Publish(queue string, message *broker.MessageType) error {
-	q, err := p.channel.QueueDeclare(
-		queue,
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
+	c := config.Getamqp()
+
+	q, err := p.declareQueue(queue)
 
 	if err != nil {
-		log.Error("AMQP queue error %v", err)
-
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), c.PublishTimeout)
 	defer cancel()
 
 	messageData, err := json.Marshal(&message)
@@ -64,6 +57,25 @@ func (p *Publisher) Publish(queue string, message *broker.MessageType) error {
 	log.Info("Message %q Sent", message.Key)
 
 	return nil
+}
+
+func (p *Publisher) declareQueue(queue string) (*amqplib.Queue, error) {
+	q, err := p.channel.QueueDeclare(
+		queue,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+
+	if err != nil {
+		log.Error("Declare queue error %v", err)
+
+		return nil, err
+	}
+
+	return &q, err
 }
 
 func Init(channel *amqplib.Channel) {

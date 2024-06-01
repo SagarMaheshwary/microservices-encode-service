@@ -16,32 +16,25 @@ type Consumer struct {
 	channel *amqplib.Channel
 }
 
-func (c *Consumer) Consume() {
-	q, err := c.channel.QueueDeclare(
-		cons.QueueEncodeService, // name
-		true,                    // durable
-		false,                   // delete when unused
-		false,                   // exclusive
-		false,                   // no-wait
-		nil,                     // arguments
-	)
+func (c *Consumer) Consume() error {
+	q, err := c.declareQueue(cons.QueueEncodeService)
 
 	if err != nil {
-		log.Error("AMQP queue error %v", err)
+		log.Fatal("Broker queue listen failed %v", err)
 	}
 
 	messages, err := c.channel.Consume(
-		q.Name, // queue
-		"",     // consumer
-		false,  // auto-ack
-		false,  // exclusive
-		false,  // no-local
-		false,  // no-wait
-		nil,    // args
+		q.Name,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
 	)
 
 	if err != nil {
-		log.Fatal("AMQP queue listen failed %v", err)
+		log.Fatal("Broker queue listen failed %v", err)
 	}
 
 	log.Info("Broker listening on queue %q", cons.QueueEncodeService)
@@ -70,6 +63,7 @@ func (c *Consumer) Consume() {
 						Title:       data["title"].(string),
 						Description: data["description"].(string),
 						PublishedAt: data["published_at"].(string),
+						UserId:      int(data["user_id"].(float64)),
 					})
 
 					if err == nil {
@@ -81,6 +75,27 @@ func (c *Consumer) Consume() {
 	}()
 
 	<-forever
+
+	return nil
+}
+
+func (c *Consumer) declareQueue(queue string) (*amqplib.Queue, error) {
+	q, err := c.channel.QueueDeclare(
+		queue,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+
+	if err != nil {
+		log.Error("Declare queue error %v", err)
+
+		return nil, err
+	}
+
+	return &q, err
 }
 
 func Init(channel *amqplib.Channel) *Consumer {

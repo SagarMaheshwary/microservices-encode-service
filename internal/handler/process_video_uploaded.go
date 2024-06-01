@@ -20,6 +20,7 @@ type VideoUploadedPayload struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	PublishedAt string `json:"published_at"`
+	UserId      int    `json:"user_id"`
 }
 
 type EncodedVideo struct {
@@ -30,6 +31,7 @@ type EncodedVideo struct {
 	Width       int                      `json:"width"`
 	Duration    int                      `json:"duration"`
 	Resolutions []EncodedVideoResolution `json:"resolutions"`
+	UserId      int                      `json:"user_id"`
 }
 
 type EncodedVideoResolution struct {
@@ -44,8 +46,9 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 	var encodedVideoResolutions []EncodedVideoResolution
 
 	videoDirPath := path.Join(helper.RootDir(), "assets", "videos", data.UploadId)
+	objectKey := fmt.Sprintf("%s/%s", cons.RawVideosDirectory, data.UploadId)
 
-	videoPath, err := downloadFileFromS3(videoDirPath, data.UploadId)
+	videoPath, err := downloadFileFromS3(videoDirPath, objectKey)
 
 	if err != nil {
 		return err
@@ -57,7 +60,7 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 		return err
 	}
 
-	encodeFrom := ve.GetVideoEncodeOptionsIndex(info.Width, info.Height)
+	encodeFrom := ve.GetEncodingStartIndex(info.Width, info.Height)
 
 	for i := encodeFrom; i < len(ve.VideoEncodeOptions); i++ {
 		opt := ve.VideoEncodeOptions[i]
@@ -79,7 +82,7 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 			return err
 		}
 
-		uploadPrefix := path.Join(data.UploadId, filePrefix)
+		uploadPrefix := path.Join(cons.EncodedVideosDirectory, data.UploadId, filePrefix)
 
 		chunks, err := uploadChunksToS3(uploadPrefix, chunkDir)
 
@@ -97,9 +100,9 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 		log.Info("Processed chunks for %s", chunkDir)
 	}
 
-	log.Info("Video encoding completed")
+	log.Info("Video encoding %s completed", data.UploadId)
 
-	duration, _ := strconv.Atoi(info.Duration)
+	duration, _ := strconv.ParseFloat(info.Duration, strconv.IntSize)
 
 	err = publisher.P.Publish(cons.QueueVideoCatalogService, &broker.MessageType{
 		Key: cons.MessageTypeVideoEncodingCompleted,
@@ -109,8 +112,9 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 			PublishedAt: data.PublishedAt,
 			Height:      info.Height,
 			Width:       info.Width,
-			Duration:    duration,
+			Duration:    int(duration),
 			Resolutions: encodedVideoResolutions,
+			UserId:      data.UserId,
 		},
 	})
 
@@ -177,10 +181,10 @@ func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error
 	for i, f := range files {
 		log.Info("File Name %s", f.Name())
 
-		filePath := path.Join(chunkDir, f.Name())
+		// filePath := path.Join(chunkDir, f.Name())
 		uploadId := path.Join(uploadPathPrefix, f.Name())
 
-		err := aws.PutFileToS3(filePath, uploadId)
+		// err := aws.UploadObjectToS3(filePath, uploadId)
 
 		if err != nil {
 			return chunks, err
@@ -203,7 +207,7 @@ func downloadFileFromS3(dirPath string, filename string) (string, error) {
 
 	videoPath := path.Join(dirPath, "original")
 
-	err = aws.DownloadFileFromS3(filename, videoPath)
+	err = aws.DownloadS3Object(filename, videoPath)
 
 	if err != nil {
 		return "", err

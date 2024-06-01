@@ -10,6 +10,10 @@ RUN go get github.com/cosmtrek/air
 
 RUN go install github.com/cosmtrek/air
 
+RUN apt-get update
+
+RUN apt-get install ffmpeg -y
+
 COPY . .
 
 CMD [ "/go/bin/air" ]
