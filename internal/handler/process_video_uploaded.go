@@ -16,7 +16,8 @@ import (
 )
 
 type VideoUploadedPayload struct {
-	UploadId    string `json:"upload_id"`
+	VideoId     string `json:"video_id"`
+	ThumbnailId string `json:"thumbnail_id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	PublishedAt string `json:"published_at"`
@@ -24,15 +25,16 @@ type VideoUploadedPayload struct {
 }
 
 type EncodedVideo struct {
-	Title       string                   `json:"title"`
-	Description string                   `json:"description"`
-	PublishedAt string                   `json:"published_at"`
-	Height      int                      `json:"height"`
-	Width       int                      `json:"width"`
-	Duration    int                      `json:"duration"`
-	Resolutions []EncodedVideoResolution `json:"resolutions"`
-	UserId      int                      `json:"user_id"`
-	OriginalId  string                   `json:"original_id"`
+	Title        string                   `json:"title"`
+	Description  string                   `json:"description"`
+	PublishedAt  string                   `json:"published_at"`
+	Height       int                      `json:"height"`
+	Width        int                      `json:"width"`
+	Duration     int                      `json:"duration"`
+	Resolutions  []EncodedVideoResolution `json:"resolutions"`
+	UserId       int                      `json:"user_id"`
+	OriginalId   string                   `json:"original_id"`
+	ThumbnailUrl string                   `json:"thumbnail_url"`
 }
 
 type EncodedVideoResolution struct {
@@ -46,8 +48,8 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 	var err error
 	var encodedVideoResolutions []EncodedVideoResolution
 
-	videoDirPath := path.Join(helper.RootDir(), cons.TempVideosDownloadDirectory, data.UploadId)
-	objectKey := fmt.Sprintf("%s/%s", cons.S3RawVideosDirectory, data.UploadId)
+	videoDirPath := path.Join(helper.RootDir(), cons.TempVideosDownloadDirectory, data.VideoId)
+	objectKey := fmt.Sprintf("%s/%s", cons.S3RawVideosDirectory, data.VideoId)
 
 	videoPath, err := downloadFileFromS3(videoDirPath, objectKey)
 
@@ -83,7 +85,7 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 			return err
 		}
 
-		uploadPrefix := path.Join(cons.S3EncodedVideosDirectory, data.UploadId, filePrefix)
+		uploadPrefix := path.Join(cons.S3EncodedVideosDirectory, data.VideoId, filePrefix)
 
 		chunks, err := uploadChunksToS3(uploadPrefix, chunkDir)
 
@@ -101,22 +103,23 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 		log.Info("Processed chunks for %s", chunkDir)
 	}
 
-	log.Info("Video encoding %s completed", data.UploadId)
+	log.Info("Video encoding %s completed", data.VideoId)
 
 	duration, _ := strconv.ParseFloat(info.Duration, strconv.IntSize)
 
 	err = publisher.P.Publish(cons.QueueVideoCatalogService, &broker.MessageType{
 		Key: cons.MessageTypeVideoEncodingCompleted,
 		Data: &EncodedVideo{
-			Title:       data.Title,
-			Description: data.Description,
-			PublishedAt: data.PublishedAt,
-			Height:      info.Height,
-			Width:       info.Width,
-			Duration:    int(duration),
-			Resolutions: encodedVideoResolutions,
-			UserId:      data.UserId,
-			OriginalId:  data.UploadId,
+			Title:        data.Title,
+			Description:  data.Description,
+			PublishedAt:  data.PublishedAt,
+			Height:       info.Height,
+			Width:        info.Width,
+			Duration:     int(duration),
+			Resolutions:  encodedVideoResolutions,
+			UserId:       data.UserId,
+			OriginalId:   data.VideoId,
+			ThumbnailUrl: fmt.Sprintf("%s/%s", cons.S3ThumbnailsDirectory, data.ThumbnailId),
 		},
 	})
 

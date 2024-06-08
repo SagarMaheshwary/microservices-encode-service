@@ -43,12 +43,12 @@ func (c *Consumer) Consume() error {
 
 	go func() {
 		for message := range messages {
-			s := broker.MessageType{}
-			json.Unmarshal(message.Body, &s)
+			m := broker.MessageType{}
+			json.Unmarshal(message.Body, &m)
 
-			log.Info("Message received %q: %v", s.Key, s.Data)
+			log.Info("Message received %q: %v", m.Key, m.Data)
 
-			switch s.Key {
+			switch m.Key {
 			case cons.MessageTypeEncodeUploadedVideo:
 				type MessageType struct {
 					Key  string                       `json:"key"`

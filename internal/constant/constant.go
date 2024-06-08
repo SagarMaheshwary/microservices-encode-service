@@ -22,6 +22,7 @@ const (
 const (
 	S3RawVideosDirectory     = "raw-videos"
 	S3EncodedVideosDirectory = "encoded-videos"
+	S3ThumbnailsDirectory    = "thumbnails"
 )
 
 const (
