@@ -24,4 +24,8 @@ const (
 	S3EncodedVideosDirectory = "encoded-videos"
 )
 
+const (
+	ExtensionMPEGDASH = "mpd"
+)
+
 const TempVideosDownloadDirectory = "assets/videos"

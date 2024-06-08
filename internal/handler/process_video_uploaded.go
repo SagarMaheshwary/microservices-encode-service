@@ -32,6 +32,7 @@ type EncodedVideo struct {
 	Duration    int                      `json:"duration"`
 	Resolutions []EncodedVideoResolution `json:"resolutions"`
 	UserId      int                      `json:"user_id"`
+	OriginalId  string                   `json:"original_id"`
 }
 
 type EncodedVideoResolution struct {
@@ -115,6 +116,7 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 			Duration:    int(duration),
 			Resolutions: encodedVideoResolutions,
 			UserId:      data.UserId,
+			OriginalId:  data.UploadId,
 		},
 	})
 
@@ -152,7 +154,7 @@ func encodeVideoToDash(inPath string, outPath string, opt *ve.VideoEncodeOption)
 		return err
 	}
 
-	dashPath := path.Join(outPath, "output.mpd")
+	dashPath := path.Join(outPath, fmt.Sprintf("%s.%s", helper.UniqueString(8), cons.ExtensionMPEGDASH))
 
 	err = ve.EncodeVideoToDash(inPath, dashPath, &ve.EncodeVideoToDashArgs{
 		Copy:            "copy",

@@ -50,25 +50,19 @@ func (c *Consumer) Consume() error {
 
 			switch s.Key {
 			case cons.MessageTypeEncodeUploadedVideo:
-				if s.Data != nil {
-					data, ok := s.Data.(map[string]interface{})
+				type MessageType struct {
+					Key  string                       `json:"key"`
+					Data handler.VideoUploadedPayload `json:"data"`
+				}
 
-					if !ok {
-						log.Error("Invalid message data %v", message.Body)
-						break
-					}
+				d := new(MessageType)
 
-					err := handler.ProcessVideoUploaded(&handler.VideoUploadedPayload{
-						UploadId:    data["upload_id"].(string),
-						Title:       data["title"].(string),
-						Description: data["description"].(string),
-						PublishedAt: data["published_at"].(string),
-						UserId:      int(data["user_id"].(float64)),
-					})
+				json.Unmarshal(message.Body, &d)
 
-					if err == nil {
-						message.Ack(false)
-					}
+				err := handler.ProcessVideoUploaded(&d.Data)
+
+				if err == nil {
+					message.Ack(false)
 				}
 			}
 		}
