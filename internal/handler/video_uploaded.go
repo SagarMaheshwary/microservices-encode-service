@@ -181,7 +181,7 @@ func encodeVideoToDash(inPath string, outPath string, opt *ve.VideoEncodeOption)
 
 func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error) {
 	files, err := os.ReadDir(chunkDir)
-	chunks := make([]string, len(files)-1)
+	chunks := make([]string, len(files))
 
 	if err != nil {
 		log.Info("Unable to read chunks dir %s", chunkDir)
@@ -199,12 +199,6 @@ func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error
 
 		if err != nil {
 			return chunks, err //@TODO: retry failed chunks
-		}
-
-		if f.Name() == cons.MPEGDASHManifestFile {
-			log.Info("Skipping master.mpd")
-
-			continue
 		}
 
 		chunks[i] = uploadId
