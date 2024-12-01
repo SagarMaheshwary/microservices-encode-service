@@ -4,18 +4,20 @@ import (
 	"fmt"
 	"os"
 	"path"
+
 	"strconv"
 
 	cons "github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/helper"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/aws"
+
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/publisher"
 	ve "github.com/sagarmaheshwary/microservices-encode-service/internal/lib/video_encoder"
 )
 
-type VideoUploadedPayload struct {
+type VideoUploadedMessage struct {
 	VideoId     string `json:"video_id"`
 	ThumbnailId string `json:"thumbnail_id"`
 	Title       string `json:"title"`
@@ -24,34 +26,33 @@ type VideoUploadedPayload struct {
 	UserId      int    `json:"user_id"`
 }
 
-type EncodedVideo struct {
-	Title        string                   `json:"title"`
-	Description  string                   `json:"description"`
-	PublishedAt  string                   `json:"published_at"`
-	Height       int                      `json:"height"`
-	Width        int                      `json:"width"`
-	Duration     int                      `json:"duration"`
-	Resolutions  []EncodedVideoResolution `json:"resolutions"`
-	UserId       int                      `json:"user_id"`
-	OriginalId   string                   `json:"original_id"`
-	ThumbnailUrl string                   `json:"thumbnail_url"`
+type VideoEncodingCompletedMessage struct {
+	Title              string              `json:"title"`
+	Description        string              `json:"description"`
+	PublishedAt        string              `json:"published_at"`
+	Height             int                 `json:"height"`
+	Width              int                 `json:"width"`
+	Duration           int                 `json:"duration"`
+	EncodedResolutions []EncodedResolution `json:"resolutions"`
+	UserId             int                 `json:"user_id"`
+	OriginalId         string              `json:"original_id"`
+	Thumbnail          string              `json:"thumbnail"`
 }
 
-type EncodedVideoResolution struct {
+type EncodedResolution struct {
 	Height int      `json:"height"`
 	Width  int      `json:"width"`
-	Codec  string   `json:"codec"`
 	Chunks []string `json:"chunks"`
 }
 
-func ProcessVideoUploaded(data *VideoUploadedPayload) error {
+func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 	var err error
-	var encodedVideoResolutions []EncodedVideoResolution
+	var encodedResolutions []EncodedResolution
 
 	videoDirPath := path.Join(helper.RootDir(), cons.TempVideosDownloadDirectory, data.VideoId)
 	objectKey := fmt.Sprintf("%s/%s", cons.S3RawVideosDirectory, data.VideoId)
 
-	videoPath, err := downloadFileFromS3(videoDirPath, objectKey)
+	videoPath, err := downloadFileFromS3(objectKey, videoDirPath)
 
 	if err != nil {
 		return err
@@ -60,48 +61,53 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 	info, err := ve.GetVideoInfo(videoPath)
 
 	if err != nil {
+		log.Error("ve.GetVideoInfo failed.")
+
 		return err
 	}
 
 	encodeFrom := ve.GetEncodingStartIndex(info.Width, info.Height)
 
-	for i := encodeFrom; i < len(ve.VideoEncodeOptions); i++ {
-		opt := ve.VideoEncodeOptions[i]
+	opt := ve.VideoEncodeOptions[encodeFrom]
 
-		filePrefix := fmt.Sprintf("%dx%d-%s", opt.Width, opt.Height, opt.VideoBitRate)
+	filePrefix := fmt.Sprintf("%dx%d", opt.Width, opt.Height)
 
-		encodedVideoPath := path.Join(videoDirPath, fmt.Sprintf("%s.%s", filePrefix, opt.Format))
-		chunkDir := path.Join(videoDirPath, filePrefix)
+	chunkDirectory := path.Join(videoDirPath, filePrefix)
+	encodedVideo := path.Join(videoDirPath, fmt.Sprintf("%s.%s", filePrefix, opt.Format))
 
-		err = encodeVideoToResolution(videoPath, encodedVideoPath, &opt)
+	err = encodeVideoToResolution(videoPath, encodedVideo, &opt)
 
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		log.Error("encodeVideoToResolution failed.")
 
-		err = encodeVideoToDash(encodedVideoPath, chunkDir, &opt)
-
-		if err != nil {
-			return err
-		}
-
-		uploadPrefix := path.Join(cons.S3EncodedVideosDirectory, data.VideoId, filePrefix)
-
-		chunks, err := uploadChunksToS3(uploadPrefix, chunkDir)
-
-		if err != nil {
-			return err
-		}
-
-		encodedVideoResolutions = append(encodedVideoResolutions, EncodedVideoResolution{
-			Height: opt.Height,
-			Width:  opt.Width,
-			Codec:  opt.VideoCodec,
-			Chunks: chunks,
-		})
-
-		log.Info("Processed chunks for %s", chunkDir)
+		return err
 	}
+
+	err = encodeVideoToDash(encodedVideo, chunkDirectory, &opt)
+
+	if err != nil {
+		log.Error("encodeVideoToDash failed.")
+
+		return err
+	}
+
+	uploadPrefix := path.Join(cons.S3EncodedVideosDirectory, data.VideoId, filePrefix)
+
+	chunks, err := uploadChunksToS3(uploadPrefix, chunkDirectory)
+
+	if err != nil {
+		log.Error("uploadChunksToS3 failed.")
+
+		return err
+	}
+
+	encodedResolutions = append(encodedResolutions, EncodedResolution{
+		Height: opt.Height,
+		Width:  opt.Width,
+		Chunks: chunks,
+	})
+
+	log.Info("Processed chunks for %s", chunkDirectory)
 
 	log.Info("Video encoding %s completed", data.VideoId)
 
@@ -109,17 +115,17 @@ func ProcessVideoUploaded(data *VideoUploadedPayload) error {
 
 	err = publisher.P.Publish(cons.QueueVideoCatalogService, &broker.MessageType{
 		Key: cons.MessageTypeVideoEncodingCompleted,
-		Data: &EncodedVideo{
-			Title:        data.Title,
-			Description:  data.Description,
-			PublishedAt:  data.PublishedAt,
-			Height:       info.Height,
-			Width:        info.Width,
-			Duration:     int(duration),
-			Resolutions:  encodedVideoResolutions,
-			UserId:       data.UserId,
-			OriginalId:   data.VideoId,
-			ThumbnailUrl: fmt.Sprintf("%s/%s", cons.S3ThumbnailsDirectory, data.ThumbnailId),
+		Data: &VideoEncodingCompletedMessage{
+			Title:              data.Title,
+			Description:        data.Description,
+			Height:             info.Height,
+			Width:              info.Width,
+			Duration:           int(duration),
+			EncodedResolutions: encodedResolutions,
+			UserId:             data.UserId,
+			OriginalId:         data.VideoId,
+			Thumbnail:          fmt.Sprintf("%s/%s", cons.S3ThumbnailsDirectory, data.ThumbnailId),
+			PublishedAt:        data.PublishedAt,
 		},
 	})
 
@@ -157,7 +163,7 @@ func encodeVideoToDash(inPath string, outPath string, opt *ve.VideoEncodeOption)
 		return err
 	}
 
-	dashPath := path.Join(outPath, fmt.Sprintf("%s.%s", helper.UniqueString(8), cons.ExtensionMPEGDASH))
+	dashPath := path.Join(outPath, cons.MPEGDASHManifestFile)
 
 	err = ve.EncodeVideoToDash(inPath, dashPath, &ve.EncodeVideoToDashArgs{
 		Copy:            "copy",
@@ -175,7 +181,7 @@ func encodeVideoToDash(inPath string, outPath string, opt *ve.VideoEncodeOption)
 
 func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error) {
 	files, err := os.ReadDir(chunkDir)
-	chunks := make([]string, len(files))
+	chunks := make([]string, len(files)-1)
 
 	if err != nil {
 		log.Info("Unable to read chunks dir %s", chunkDir)
@@ -184,15 +190,21 @@ func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error
 	}
 
 	for i, f := range files {
-		log.Info("File Name %s", f.Name())
-
-		filePath := path.Join(chunkDir, f.Name())
+		chunkPath := path.Join(chunkDir, f.Name())
 		uploadId := path.Join(uploadPathPrefix, f.Name())
 
-		err := aws.UploadObjectToS3(filePath, uploadId)
+		log.Info(`Uploading chunk file: \"%s", upload path: "%s" (%d)`, chunkPath, uploadId, i+1)
+
+		err := aws.UploadObjectToS3(chunkPath, uploadId)
 
 		if err != nil {
-			return chunks, err
+			return chunks, err //@TODO: retry failed chunks
+		}
+
+		if f.Name() == cons.MPEGDASHManifestFile {
+			log.Info("Skipping master.mpd")
+
+			continue
 		}
 
 		chunks[i] = uploadId
@@ -201,16 +213,16 @@ func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error
 	return chunks, nil
 }
 
-func downloadFileFromS3(dirPath string, filename string) (string, error) {
-	err := os.Mkdir(dirPath, os.ModePerm)
+func downloadFileFromS3(filename string, downloadDirectory string) (string, error) {
+	err := os.Mkdir(downloadDirectory, os.ModePerm)
 
 	if err != nil {
-		log.Error("Unable to create directory for video %s", dirPath)
+		log.Error("Unable to create directory for video %s", downloadDirectory)
 
 		return "", err
 	}
 
-	videoPath := path.Join(dirPath, helper.UniqueString(8))
+	videoPath := path.Join(downloadDirectory, helper.UniqueString(8))
 
 	err = aws.DownloadS3Object(filename, videoPath)
 

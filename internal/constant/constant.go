@@ -25,8 +25,6 @@ const (
 	S3ThumbnailsDirectory    = "thumbnails"
 )
 
-const (
-	ExtensionMPEGDASH = "mpd"
-)
-
 const TempVideosDownloadDirectory = "assets/videos"
+
+const MPEGDASHManifestFile = "master.mpd"

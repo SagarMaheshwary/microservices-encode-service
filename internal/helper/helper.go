@@ -6,6 +6,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 func RootDir() string {
@@ -20,5 +21,5 @@ func UniqueString(length int) string {
 
 	rand.Read(b)
 
-	return base32.StdEncoding.EncodeToString(b)[:length]
+	return strings.ToLower(base32.StdEncoding.EncodeToString(b)[:length])
 }

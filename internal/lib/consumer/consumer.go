@@ -46,20 +46,20 @@ func (c *Consumer) Consume() error {
 			m := broker.MessageType{}
 			json.Unmarshal(message.Body, &m)
 
-			log.Info("Message received %q: %v", m.Key, m.Data)
+			log.Info("AMQP Message received %q: %v", m.Key, m.Data)
 
 			switch m.Key {
 			case cons.MessageTypeEncodeUploadedVideo:
 				type MessageType struct {
 					Key  string                       `json:"key"`
-					Data handler.VideoUploadedPayload `json:"data"`
+					Data handler.VideoUploadedMessage `json:"data"`
 				}
 
 				d := new(MessageType)
 
 				json.Unmarshal(message.Body, &d)
 
-				err := handler.ProcessVideoUploaded(&d.Data)
+				err := handler.ProcessVideoUploadedMessage(&d.Data)
 
 				if err == nil {
 					message.Ack(false)
