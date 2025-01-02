@@ -15,7 +15,7 @@ import (
 )
 
 func NewSession() (*session.Session, error) {
-	c := config.GetS3()
+	c := config.Conf.AWS
 
 	s, err := session.NewSession(&awslib.Config{
 		Region:      awslib.String(c.Region),
@@ -32,7 +32,7 @@ func NewSession() (*session.Session, error) {
 }
 
 func UploadObjectToS3(filePath string, uploadPath string) error {
-	c := config.GetS3()
+	c := config.Conf.AWS
 
 	sess, err := NewSession()
 
@@ -59,7 +59,7 @@ func UploadObjectToS3(filePath string, uploadPath string) error {
 	}
 
 	_, err = svc.PutObject(&s3.PutObjectInput{
-		Bucket:               awslib.String(c.Bucket),
+		Bucket:               awslib.String(c.S3Bucket),
 		Key:                  awslib.String(uploadPath),
 		Body:                 bytes.NewReader(file),
 		ContentLength:        awslib.Int64(fileStat.Size()),
@@ -78,7 +78,7 @@ func UploadObjectToS3(filePath string, uploadPath string) error {
 }
 
 func GetS3Object(key string) (*s3.GetObjectOutput, error) {
-	c := config.GetS3()
+	c := config.Conf.AWS
 
 	sess, err := NewSession()
 	svc := s3.New(sess)
@@ -88,7 +88,7 @@ func GetS3Object(key string) (*s3.GetObjectOutput, error) {
 	}
 
 	file, err := svc.GetObject(&s3.GetObjectInput{
-		Bucket: awslib.String(c.Bucket),
+		Bucket: awslib.String(c.S3Bucket),
 		Key:    awslib.String(key),
 	})
 

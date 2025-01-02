@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	amqplib "github.com/rabbitmq/amqp091-go"
-	cons "github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/handler"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
@@ -17,7 +17,7 @@ type Consumer struct {
 }
 
 func (c *Consumer) Consume() error {
-	q, err := c.declareQueue(cons.QueueEncodeService)
+	q, err := c.declareQueue(constant.QueueEncodeService)
 
 	if err != nil {
 		log.Fatal("Broker queue listen failed %v", err)
@@ -37,7 +37,7 @@ func (c *Consumer) Consume() error {
 		log.Fatal("Broker queue listen failed %v", err)
 	}
 
-	log.Info("Broker listening on queue %q", cons.QueueEncodeService)
+	log.Info("Broker listening on queue %q", constant.QueueEncodeService)
 
 	var forever chan struct{}
 
@@ -49,7 +49,7 @@ func (c *Consumer) Consume() error {
 			log.Info("AMQP Message received %q: %v", m.Key, m.Data)
 
 			switch m.Key {
-			case cons.MessageTypeEncodeUploadedVideo:
+			case constant.MessageTypeEncodeUploadedVideo:
 				type MessageType struct {
 					Key  string                       `json:"key"`
 					Data handler.VideoUploadedMessage `json:"data"`

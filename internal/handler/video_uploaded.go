@@ -7,7 +7,7 @@ import (
 
 	"strconv"
 
-	cons "github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/helper"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/aws"
 
@@ -37,6 +37,7 @@ type VideoEncodingCompletedMessage struct {
 	UserId             int                 `json:"user_id"`
 	OriginalId         string              `json:"original_id"`
 	Thumbnail          string              `json:"thumbnail"`
+	Path               string              `json:"path"`
 }
 
 type EncodedResolution struct {
@@ -49,8 +50,8 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 	var err error
 	var encodedResolutions []EncodedResolution
 
-	videoDirPath := path.Join(helper.RootDir(), cons.TempVideosDownloadDirectory, data.VideoId)
-	objectKey := fmt.Sprintf("%s/%s", cons.S3RawVideosDirectory, data.VideoId)
+	videoDirPath := path.Join(helper.RootDir(), constant.TempVideosDownloadDirectory, data.VideoId)
+	objectKey := fmt.Sprintf("%s/%s", constant.S3RawVideosDirectory, data.VideoId)
 
 	videoPath, err := downloadFileFromS3(objectKey, videoDirPath)
 
@@ -91,7 +92,7 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 		return err
 	}
 
-	uploadPrefix := path.Join(cons.S3EncodedVideosDirectory, data.VideoId, filePrefix)
+	uploadPrefix := path.Join(constant.S3EncodedVideosDirectory, data.VideoId, filePrefix)
 
 	chunks, err := uploadChunksToS3(uploadPrefix, chunkDirectory)
 
@@ -113,8 +114,8 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 
 	duration, _ := strconv.ParseFloat(info.Duration, strconv.IntSize)
 
-	err = publisher.P.Publish(cons.QueueVideoCatalogService, &broker.MessageType{
-		Key: cons.MessageTypeVideoEncodingCompleted,
+	err = publisher.P.Publish(constant.QueueVideoCatalogService, &broker.MessageType{
+		Key: constant.MessageTypeVideoEncodingCompleted,
 		Data: &VideoEncodingCompletedMessage{
 			Title:              data.Title,
 			Description:        data.Description,
@@ -124,8 +125,9 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 			EncodedResolutions: encodedResolutions,
 			UserId:             data.UserId,
 			OriginalId:         data.VideoId,
-			Thumbnail:          fmt.Sprintf("%s/%s", cons.S3ThumbnailsDirectory, data.ThumbnailId),
+			Thumbnail:          fmt.Sprintf("%s/%s", constant.S3ThumbnailsDirectory, data.ThumbnailId),
 			PublishedAt:        data.PublishedAt,
+			Path:               uploadPrefix,
 		},
 	})
 
@@ -163,7 +165,7 @@ func encodeVideoToDash(inPath string, outPath string, opt *ve.VideoEncodeOption)
 		return err
 	}
 
-	dashPath := path.Join(outPath, cons.MPEGDASHManifestFile)
+	dashPath := path.Join(outPath, constant.MPEGDASHManifestFile)
 
 	err = ve.EncodeVideoToDash(inPath, dashPath, &ve.EncodeVideoToDashArgs{
 		Copy:            "copy",

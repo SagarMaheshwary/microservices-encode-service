@@ -17,7 +17,7 @@ type Publisher struct {
 }
 
 func (p *Publisher) Publish(queue string, message *broker.MessageType) error {
-	c := config.Getamqp()
+	c := config.Conf.AMQP
 
 	q, err := p.declareQueue(queue)
 
