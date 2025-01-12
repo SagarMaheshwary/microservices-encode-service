@@ -8,14 +8,20 @@ import (
 
 	"github.com/gofor-little/env"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/helper"
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 )
 
 var Conf *Config
 
 type Config struct {
-	AWS  *AWS
-	AMQP *AMQP
+	AWS        *AWS
+	AMQP       *AMQP
+	GRPCServer *GRPCServer
+}
+
+type GRPCServer struct {
+	Host string
+	Port int
 }
 
 type AWS struct {
@@ -39,12 +45,16 @@ func Init() {
 	envPath := path.Join(helper.RootDir(), "..", ".env")
 
 	if err := env.Load(envPath); err != nil {
-		log.Fatal("Failed to load %q: %v", envPath, err)
+		logger.Fatal("Failed to load %q: %v", envPath, err)
 	}
 
-	log.Info("Loaded %q", envPath)
+	logger.Info("Loaded %q", envPath)
 
 	Conf = &Config{
+		GRPCServer: &GRPCServer{
+			Host: getEnv("GRPC_HOST", "localhost"),
+			Port: getEnvInt("GRPC_PORT", 5000),
+		},
 		AWS: &AWS{
 			Region:               getEnv("AWS_REGION", ""),
 			AccessKey:            getEnv("AWS_ACCESS_KEY", ""),

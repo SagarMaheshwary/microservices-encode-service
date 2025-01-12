@@ -7,7 +7,7 @@ import (
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/handler"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 )
 
 var C *Consumer
@@ -20,7 +20,7 @@ func (c *Consumer) Consume() error {
 	q, err := c.declareQueue(constant.QueueEncodeService)
 
 	if err != nil {
-		log.Fatal("Broker queue listen failed %v", err)
+		logger.Fatal("AMQP queue listen failed %v", err)
 	}
 
 	messages, err := c.channel.Consume(
@@ -34,10 +34,10 @@ func (c *Consumer) Consume() error {
 	)
 
 	if err != nil {
-		log.Fatal("Broker queue listen failed %v", err)
+		logger.Fatal("AMQP queue listen failed %v", err)
 	}
 
-	log.Info("Broker listening on queue %q", constant.QueueEncodeService)
+	logger.Info("AMQP listening on queue %q", constant.QueueEncodeService)
 
 	var forever chan struct{}
 
@@ -46,7 +46,7 @@ func (c *Consumer) Consume() error {
 			m := broker.MessageType{}
 			json.Unmarshal(message.Body, &m)
 
-			log.Info("AMQP Message received %q: %v", m.Key, m.Data)
+			logger.Info("AMQP Message received %q: %v", m.Key, m.Data)
 
 			switch m.Key {
 			case constant.MessageTypeEncodeUploadedVideo:
@@ -84,7 +84,7 @@ func (c *Consumer) declareQueue(queue string) (*amqplib.Queue, error) {
 	)
 
 	if err != nil {
-		log.Error("Declare queue error %v", err)
+		logger.Error("AMQP declare queue error %v", err)
 
 		return nil, err
 	}

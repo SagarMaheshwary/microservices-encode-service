@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/config"
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 )
 
 func NewSession() (*session.Session, error) {
@@ -23,7 +23,7 @@ func NewSession() (*session.Session, error) {
 	})
 
 	if err != nil {
-		log.Error("Unable to create aws session: %v", err)
+		logger.Error("Unable to create aws session: %v", err)
 
 		return nil, err
 	}
@@ -34,18 +34,18 @@ func NewSession() (*session.Session, error) {
 func UploadObjectToS3(filePath string, uploadPath string) error {
 	c := config.Conf.AWS
 
-	sess, err := NewSession()
+	s, err := NewSession()
 
 	if err != nil {
 		return err
 	}
 
-	svc := s3.New(sess)
+	svc := s3.New(s)
 
-	file, err := os.ReadFile(filePath)
+	f, err := os.ReadFile(filePath)
 
 	if err != nil {
-		log.Error("Unable to read file for upload %v", err)
+		logger.Error("Unable to read file for upload %v", err)
 
 		return err
 	}
@@ -53,7 +53,7 @@ func UploadObjectToS3(filePath string, uploadPath string) error {
 	fileStat, err := os.Stat(filePath)
 
 	if err != nil {
-		log.Error("Unable to read file stats %v", err)
+		logger.Error("Unable to read file stats %v", err)
 
 		return err
 	}
@@ -61,15 +61,15 @@ func UploadObjectToS3(filePath string, uploadPath string) error {
 	_, err = svc.PutObject(&s3.PutObjectInput{
 		Bucket:               awslib.String(c.S3Bucket),
 		Key:                  awslib.String(uploadPath),
-		Body:                 bytes.NewReader(file),
+		Body:                 bytes.NewReader(f),
 		ContentLength:        awslib.Int64(fileStat.Size()),
-		ContentType:          awslib.String(http.DetectContentType(file)),
+		ContentType:          awslib.String(http.DetectContentType(f)),
 		ContentDisposition:   awslib.String("attachment"),
 		ServerSideEncryption: awslib.String("AES256"),
 	})
 
 	if err != nil {
-		log.Error("File upload failed %v", err)
+		logger.Error("File upload failed %v", err)
 
 		return err
 	}
@@ -79,24 +79,23 @@ func UploadObjectToS3(filePath string, uploadPath string) error {
 
 func GetS3Object(key string) (*s3.GetObjectOutput, error) {
 	c := config.Conf.AWS
-
-	sess, err := NewSession()
-	svc := s3.New(sess)
+	s, err := NewSession()
+	svc := s3.New(s)
 
 	if err != nil {
 		return nil, err
 	}
 
-	file, err := svc.GetObject(&s3.GetObjectInput{
+	res, err := svc.GetObject(&s3.GetObjectInput{
 		Bucket: awslib.String(c.S3Bucket),
 		Key:    awslib.String(key),
 	})
 
 	if err != nil {
-		log.Error("S3 get object error %v", err)
+		logger.Error("S3 get object error %v", err)
 	}
 
-	return file, err
+	return res, err
 }
 
 func DownloadS3Object(filename string, downloadPath string) error {
@@ -106,10 +105,10 @@ func DownloadS3Object(filename string, downloadPath string) error {
 		return err
 	}
 
-	bytes, err := io.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 
 	if err != nil {
-		log.Error("Unable to read file bytes %v", err)
+		logger.Error("Unable to read file bytes %v", err)
 
 		return err
 	}
@@ -117,15 +116,15 @@ func DownloadS3Object(filename string, downloadPath string) error {
 	f, err := os.Create(downloadPath)
 
 	if err != nil {
-		log.Error("Unable to create file %v", err)
+		logger.Error("Unable to create file %v", err)
 
 		return err
 	}
 
-	_, err = f.Write(bytes)
+	_, err = f.Write(b)
 
 	if err != nil {
-		log.Error("Unable to write to file %v", err)
+		logger.Error("Unable to write to file %v", err)
 
 		return err
 	}

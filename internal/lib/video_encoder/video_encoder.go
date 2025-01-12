@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 	ffmpeglib "github.com/u2takey/ffmpeg-go"
 )
 
@@ -108,7 +108,7 @@ func EncodeVideoToResolution(inPath string, outPath string, args *EncodeVideoToR
 	err := ffmpeglib.Input(inPath).Output(outPath, outArgs).OverWriteOutput().ErrorToStdOut().Run()
 
 	if err != nil {
-		log.Error("FFMPEG encode video to resolution failed %v", err)
+		logger.Error("FFMPEG encode video to resolution failed %v", err)
 
 		return err
 	}
@@ -116,7 +116,7 @@ func EncodeVideoToResolution(inPath string, outPath string, args *EncodeVideoToR
 	return nil
 }
 
-func EncodeVideoToDash(inPath string, outPath string, args *EncodeVideoToDashArgs) error {
+func EncodeVideoToDash(in string, out string, args *EncodeVideoToDashArgs) error {
 	outArgs := ffmpeglib.KwArgs{
 		"c":            args.Copy,
 		"f":            "dash",
@@ -125,16 +125,16 @@ func EncodeVideoToDash(inPath string, outPath string, args *EncodeVideoToDashArg
 		"use_template": args.UseTemplate,
 	}
 
-	err := ffmpeglib.Input(inPath).Output(outPath, outArgs).OverWriteOutput().ErrorToStdOut().Run()
+	err := ffmpeglib.Input(in).Output(out, outArgs).OverWriteOutput().ErrorToStdOut().Run()
 
 	if err != nil {
-		log.Error("FFMPEG encode video to dash failed %v", err)
+		logger.Error("FFMPEG encode video to dash failed %v", err)
 	}
 
 	return nil
 }
 
-func GetVideoInfo(inPath string) (*VideoInfo, error) {
+func GetVideoInfo(in string) (*VideoInfo, error) {
 	args := []string{
 		"-v",
 		"error",
@@ -144,13 +144,13 @@ func GetVideoInfo(inPath string) (*VideoInfo, error) {
 		"stream=width,height,duration,codec_name,bit_rate",
 		"-of",
 		"json",
-		inPath,
+		in,
 	}
 
-	out, err := exec.Command("ffprobe", args...).Output()
+	o, err := exec.Command("ffprobe", args...).Output()
 
 	if err != nil {
-		log.Error("Command failed %v", err)
+		logger.Error("FFprobe command failed %v", err)
 
 		return nil, err
 	}
@@ -162,9 +162,9 @@ func GetVideoInfo(inPath string) (*VideoInfo, error) {
 
 	m := new(FileOutput)
 
-	json.Unmarshal([]byte(out), &m)
+	json.Unmarshal([]byte(o), &m)
 
-	log.Info("Video %q Info: %v", inPath, m)
+	logger.Info("Video %q Info: %v", in, m)
 
 	return &m.Streams[0], nil
 }

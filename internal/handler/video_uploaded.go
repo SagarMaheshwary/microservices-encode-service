@@ -12,7 +12,7 @@ import (
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/aws"
 
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/publisher"
 	ve "github.com/sagarmaheshwary/microservices-encode-service/internal/lib/video_encoder"
 )
@@ -62,7 +62,7 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 	info, err := ve.GetVideoInfo(videoPath)
 
 	if err != nil {
-		log.Error("ve.GetVideoInfo failed.")
+		logger.Error("ve.GetVideoInfo failed! %v", err)
 
 		return err
 	}
@@ -79,7 +79,7 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 	err = encodeVideoToResolution(videoPath, encodedVideo, &opt)
 
 	if err != nil {
-		log.Error("encodeVideoToResolution failed.")
+		logger.Error("encodeVideoToResolution failed! %v", err)
 
 		return err
 	}
@@ -87,7 +87,7 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 	err = encodeVideoToDash(encodedVideo, chunkDirectory, &opt)
 
 	if err != nil {
-		log.Error("encodeVideoToDash failed.")
+		logger.Error("encodeVideoToDash failed! %v", err)
 
 		return err
 	}
@@ -97,7 +97,7 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 	chunks, err := uploadChunksToS3(uploadPrefix, chunkDirectory)
 
 	if err != nil {
-		log.Error("uploadChunksToS3 failed.")
+		logger.Error("uploadChunksToS3 failed! %v", err)
 
 		return err
 	}
@@ -108,9 +108,9 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 		Chunks: chunks,
 	})
 
-	log.Info("Processed chunks for %s", chunkDirectory)
+	logger.Info("Processed chunks for %s", chunkDirectory)
 
-	log.Info("Video encoding %s completed", data.VideoId)
+	logger.Info("Video encoding %s completed", data.VideoId)
 
 	duration, _ := strconv.ParseFloat(info.Duration, strconv.IntSize)
 
@@ -132,7 +132,7 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 	})
 
 	if err != nil {
-		log.Error("Unable to send data to video catalog service %v", err)
+		logger.Error("Unable to send data to video catalog service! %v", err)
 
 		return err
 	}
@@ -140,8 +140,8 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 	return nil
 }
 
-func encodeVideoToResolution(inPath string, outPath string, opt *ve.VideoEncodeOption) error {
-	err := ve.EncodeVideoToResolution(inPath, outPath, &ve.EncodeVideoToResolutionArgs{
+func encodeVideoToResolution(in string, out string, opt *ve.VideoEncodeOption) error {
+	err := ve.EncodeVideoToResolution(in, out, &ve.EncodeVideoToResolutionArgs{
 		VideoCodec:   opt.VideoCodec,
 		VideoBitRate: opt.VideoBitRate,
 		AudioCodec:   opt.AudioCodec,
@@ -156,18 +156,18 @@ func encodeVideoToResolution(inPath string, outPath string, opt *ve.VideoEncodeO
 	return nil
 }
 
-func encodeVideoToDash(inPath string, outPath string, opt *ve.VideoEncodeOption) error {
-	err := os.Mkdir(outPath, os.ModePerm)
+func encodeVideoToDash(in string, out string, opt *ve.VideoEncodeOption) error {
+	err := os.Mkdir(out, os.ModePerm)
 
 	if err != nil {
-		log.Error("unable to create directory %s", outPath)
+		logger.Error("Unable to create directory! %s", out)
 
 		return err
 	}
 
-	dashPath := path.Join(outPath, constant.MPEGDASHManifestFile)
+	p := path.Join(out, constant.MPEGDASHManifestFile)
 
-	err = ve.EncodeVideoToDash(inPath, dashPath, &ve.EncodeVideoToDashArgs{
+	err = ve.EncodeVideoToDash(in, p, &ve.EncodeVideoToDashArgs{
 		Copy:            "copy",
 		SegmentDuration: opt.SegmentTime,
 		UseTimeline:     1,
@@ -186,18 +186,18 @@ func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error
 	chunks := make([]string, len(files))
 
 	if err != nil {
-		log.Info("Unable to read chunks dir %s", chunkDir)
+		logger.Info("Unable to read chunks directory! %s", chunkDir)
 
 		return chunks, err
 	}
 
 	for i, f := range files {
-		chunkPath := path.Join(chunkDir, f.Name())
+		p := path.Join(chunkDir, f.Name())
 		uploadId := path.Join(uploadPathPrefix, f.Name())
 
-		log.Info(`Uploading chunk file: \"%s", upload path: "%s" (%d)`, chunkPath, uploadId, i+1)
+		logger.Info(`Uploading chunk file: \"%s", upload path: "%s" (%d)`, p, uploadId, i+1)
 
-		err := aws.UploadObjectToS3(chunkPath, uploadId)
+		err := aws.UploadObjectToS3(p, uploadId)
 
 		if err != nil {
 			return chunks, err //@TODO: retry failed chunks
@@ -213,18 +213,18 @@ func downloadFileFromS3(filename string, downloadDirectory string) (string, erro
 	err := os.Mkdir(downloadDirectory, os.ModePerm)
 
 	if err != nil {
-		log.Error("Unable to create directory for video %s", downloadDirectory)
+		logger.Error("Unable to create directory for video %s", downloadDirectory)
 
 		return "", err
 	}
 
-	videoPath := path.Join(downloadDirectory, helper.UniqueString(8))
+	p := path.Join(downloadDirectory, helper.UniqueString(8))
 
-	err = aws.DownloadS3Object(filename, videoPath)
+	err = aws.DownloadS3Object(filename, p)
 
 	if err != nil {
 		return "", err
 	}
 
-	return videoPath, nil
+	return p, nil
 }

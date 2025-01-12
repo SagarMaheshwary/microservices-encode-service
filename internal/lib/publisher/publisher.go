@@ -7,7 +7,7 @@ import (
 	amqplib "github.com/rabbitmq/amqp091-go"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/config"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/log"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 )
 
 var P *Publisher
@@ -31,7 +31,7 @@ func (p *Publisher) Publish(queue string, message *broker.MessageType) error {
 	messageData, err := json.Marshal(&message)
 
 	if err != nil {
-		log.Error("Unable to parse message %v", message)
+		logger.Error("Unable to parse message %v", message)
 
 		return err
 	}
@@ -49,12 +49,12 @@ func (p *Publisher) Publish(queue string, message *broker.MessageType) error {
 	)
 
 	if err != nil {
-		log.Error("AMQP Unable to publish message %v", err)
+		logger.Error("AMQP Unable to publish message %v", err)
 
 		return err
 	}
 
-	log.Info("Message %q Sent", message.Key)
+	logger.Info("Message %q Sent", message.Key)
 
 	return nil
 }
@@ -70,7 +70,7 @@ func (p *Publisher) declareQueue(queue string) (*amqplib.Queue, error) {
 	)
 
 	if err != nil {
-		log.Error("Declare queue error %v", err)
+		logger.Error("Declare queue error %v", err)
 
 		return nil, err
 	}

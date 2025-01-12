@@ -1,4 +1,4 @@
-package log
+package logger
 
 import (
 	"os"
@@ -9,9 +9,11 @@ import (
 
 func Init() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	log.Logger = log.Output(zerolog.ConsoleWriter{
+		Out:        os.Stderr,
+		TimeFormat: "02/01/2006, 3:04:05 PM",
+	})
 }
-
 func Info(format string, v ...interface{}) {
 	log.Info().Msgf(format, v...)
 }
