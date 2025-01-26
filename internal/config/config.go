@@ -17,6 +17,7 @@ type Config struct {
 	AWS        *AWS
 	AMQP       *AMQP
 	GRPCServer *GRPCServer
+	Prometheus *Prometheus
 }
 
 type GRPCServer struct {
@@ -41,6 +42,11 @@ type AMQP struct {
 	PublishTimeout time.Duration
 }
 
+type Prometheus struct {
+	METRICS_HOST string
+	METRICS_PORT int
+}
+
 func Init() {
 	envPath := path.Join(helper.RootDir(), "..", ".env")
 
@@ -53,7 +59,7 @@ func Init() {
 	Conf = &Config{
 		GRPCServer: &GRPCServer{
 			Host: getEnv("GRPC_HOST", "localhost"),
-			Port: getEnvInt("GRPC_PORT", 5000),
+			Port: getEnvInt("GRPC_PORT", 5004),
 		},
 		AWS: &AWS{
 			Region:               getEnv("AWS_REGION", ""),
@@ -69,6 +75,10 @@ func Init() {
 			Username:       getEnv("AMQP_USERNAME", "guest"),
 			Password:       getEnv("AMQP_PASSWORD", "guest"),
 			PublishTimeout: getEnvDuration("AMQP_PUBLISH_TIMEOUT_SECONDS", 5),
+		},
+		Prometheus: &Prometheus{
+			METRICS_HOST: getEnv("PROMETHEUS_METRICS_HOST", "localhost"),
+			METRICS_PORT: getEnvInt("PROMETHEUS_METRICS_PORT", 5014),
 		},
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/consumer"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/prometheus"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/publisher"
 )
 
@@ -34,6 +35,10 @@ func main() {
 
 	go func() {
 		c.Consume()
+	}()
+
+	go func() {
+		prometheus.Connect()
 	}()
 
 	server.Connect()
