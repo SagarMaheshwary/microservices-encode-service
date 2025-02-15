@@ -1,5 +1,4 @@
 tmp/
-internal/assets/videos/*
-!internal/assets/videos/.gitkeep
-
+videos/*
+!videos/.gitkeep
 .env

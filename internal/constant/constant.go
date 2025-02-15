@@ -25,6 +25,6 @@ const (
 	S3ThumbnailsDirectory    = "thumbnails"
 )
 
-const TempVideosDownloadDirectory = "assets/videos"
+const TempVideosDownloadDirectory = "videos"
 
 const MPEGDASHManifestFile = "master.mpd"

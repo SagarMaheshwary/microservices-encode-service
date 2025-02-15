@@ -27,30 +27,23 @@ type VideoUploadedMessage struct {
 }
 
 type VideoEncodingCompletedMessage struct {
-	Title              string              `json:"title"`
-	Description        string              `json:"description"`
-	PublishedAt        string              `json:"published_at"`
-	Height             int                 `json:"height"`
-	Width              int                 `json:"width"`
-	Duration           int                 `json:"duration"`
-	EncodedResolutions []EncodedResolution `json:"resolutions"`
-	UserId             int                 `json:"user_id"`
-	OriginalId         string              `json:"original_id"`
-	Thumbnail          string              `json:"thumbnail"`
-	Path               string              `json:"path"`
-}
-
-type EncodedResolution struct {
-	Height int      `json:"height"`
-	Width  int      `json:"width"`
-	Chunks []string `json:"chunks"`
+	Title           string `json:"title"`
+	Description     string `json:"description"`
+	PublishedAt     string `json:"published_at"`
+	Height          int    `json:"height"`
+	Width           int    `json:"width"`
+	DurationSeconds int    `json:"duration"`
+	UserId          int    `json:"user_id"`
+	OriginalId      string `json:"original_id"`
+	Thumbnail       string `json:"thumbnail"`
+	Path            string `json:"path"`
 }
 
 func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 	var err error
-	var encodedResolutions []EncodedResolution
 
-	videoDirPath := path.Join(helper.RootDir(), constant.TempVideosDownloadDirectory, data.VideoId)
+	videoDirPath := path.Join(helper.GetRootDir(), "..", constant.TempVideosDownloadDirectory, data.VideoId)
+
 	objectKey := fmt.Sprintf("%s/%s", constant.S3RawVideosDirectory, data.VideoId)
 
 	videoPath, err := downloadFileFromS3(objectKey, videoDirPath)
@@ -94,19 +87,13 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 
 	uploadPrefix := path.Join(constant.S3EncodedVideosDirectory, data.VideoId, filePrefix)
 
-	chunks, err := uploadChunksToS3(uploadPrefix, chunkDirectory)
+	err = uploadChunksToS3(uploadPrefix, chunkDirectory)
 
 	if err != nil {
 		logger.Error("uploadChunksToS3 failed! %v", err)
 
 		return err
 	}
-
-	encodedResolutions = append(encodedResolutions, EncodedResolution{
-		Height: opt.Height,
-		Width:  opt.Width,
-		Chunks: chunks,
-	})
 
 	logger.Info("Processed chunks for %s", chunkDirectory)
 
@@ -117,17 +104,16 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 	err = publisher.P.Publish(constant.QueueVideoCatalogService, &broker.MessageType{
 		Key: constant.MessageTypeVideoEncodingCompleted,
 		Data: &VideoEncodingCompletedMessage{
-			Title:              data.Title,
-			Description:        data.Description,
-			Height:             info.Height,
-			Width:              info.Width,
-			Duration:           int(duration),
-			EncodedResolutions: encodedResolutions,
-			UserId:             data.UserId,
-			OriginalId:         data.VideoId,
-			Thumbnail:          fmt.Sprintf("%s/%s", constant.S3ThumbnailsDirectory, data.ThumbnailId),
-			PublishedAt:        data.PublishedAt,
-			Path:               uploadPrefix,
+			Title:           data.Title,
+			Description:     data.Description,
+			Height:          info.Height,
+			Width:           info.Width,
+			DurationSeconds: int(duration),
+			UserId:          data.UserId,
+			OriginalId:      data.VideoId,
+			Thumbnail:       fmt.Sprintf("%s/%s", constant.S3ThumbnailsDirectory, data.ThumbnailId),
+			PublishedAt:     data.PublishedAt,
+			Path:            uploadPrefix,
 		},
 	})
 
@@ -181,14 +167,13 @@ func encodeVideoToDash(in string, out string, opt *ve.VideoEncodeOption) error {
 	return nil
 }
 
-func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error) {
+func uploadChunksToS3(uploadPathPrefix string, chunkDir string) error {
 	files, err := os.ReadDir(chunkDir)
-	chunks := make([]string, len(files))
 
 	if err != nil {
 		logger.Info("Unable to read chunks directory! %s", chunkDir)
 
-		return chunks, err
+		return err
 	}
 
 	for i, f := range files {
@@ -200,13 +185,11 @@ func uploadChunksToS3(uploadPathPrefix string, chunkDir string) ([]string, error
 		err := aws.UploadObjectToS3(p, uploadId)
 
 		if err != nil {
-			return chunks, err //@TODO: retry failed chunks
+			return err //@TODO: retry failed chunks
 		}
-
-		chunks[i] = uploadId
 	}
 
-	return chunks, nil
+	return nil
 }
 
 func downloadFileFromS3(filename string, downloadDirectory string) (string, error) {

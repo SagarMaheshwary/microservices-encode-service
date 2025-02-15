@@ -20,6 +20,7 @@ WORKDIR /app
 RUN apk update && apk add --no-cache ffmpeg
 
 COPY --from=builder /app/main /app/main
+COPY --from=builder /app/videos /app/videos
 
 CMD [ "./main" ]
 
