@@ -18,6 +18,7 @@ type Config struct {
 	AMQP       *AMQP
 	GRPCServer *GRPCServer
 	Prometheus *Prometheus
+	Jaeger     *Jaeger
 }
 
 type GRPCServer struct {
@@ -43,8 +44,11 @@ type AMQP struct {
 }
 
 type Prometheus struct {
-	METRICS_HOST string
-	METRICS_PORT int
+	URL string
+}
+
+type Jaeger struct {
+	URL string
 }
 
 func Init() {
@@ -81,8 +85,10 @@ func Init() {
 			PublishTimeout: getEnvDuration("AMQP_PUBLISH_TIMEOUT_SECONDS", 5),
 		},
 		Prometheus: &Prometheus{
-			METRICS_HOST: getEnv("PROMETHEUS_METRICS_HOST", "localhost"),
-			METRICS_PORT: getEnvInt("PROMETHEUS_METRICS_PORT", 5014),
+			URL: getEnv("PROMETHEUS_URL", "localhost:5014"),
+		},
+		Jaeger: &Jaeger{
+			URL: getEnv("JAEGER_URL", "localhost:4318"),
 		},
 	}
 }

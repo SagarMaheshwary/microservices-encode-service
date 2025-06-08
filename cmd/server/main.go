@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
+	"log"
+
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/config"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/grpc/server"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/consumer"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/jaeger"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/prometheus"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/publisher"
@@ -13,6 +17,19 @@ import (
 func main() {
 	logger.Init()
 	config.Init()
+
+	ctx := context.Background()
+	shutdown := jaeger.Init(ctx)
+
+	defer func() {
+		if err := shutdown(ctx); err != nil {
+			log.Fatalf("failed to shutdown jaeger tracer: %v", err)
+		}
+	}()
+
+	go func() {
+		prometheus.Connect()
+	}()
 
 	broker.Connect()
 	defer broker.Conn.Close()
@@ -35,10 +52,6 @@ func main() {
 
 	go func() {
 		c.Consume()
-	}()
-
-	go func() {
-		prometheus.Connect()
 	}()
 
 	server.Connect()

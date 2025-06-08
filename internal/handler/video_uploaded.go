@@ -10,6 +10,7 @@ import (
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/helper"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/aws"
+	"golang.org/x/net/context"
 
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
@@ -39,7 +40,7 @@ type VideoEncodingCompletedMessage struct {
 	Path            string `json:"path"`
 }
 
-func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
+func ProcessVideoUploadedMessage(ctx context.Context, data *VideoUploadedMessage) error {
 	var err error
 
 	videoDirPath := path.Join(helper.GetRootDir(), "..", constant.TempVideosDownloadDirectory, data.VideoId)
@@ -101,7 +102,7 @@ func ProcessVideoUploadedMessage(data *VideoUploadedMessage) error {
 
 	duration, _ := strconv.ParseFloat(info.Duration, strconv.IntSize)
 
-	err = publisher.P.Publish(constant.QueueVideoCatalogService, &broker.MessageType{
+	err = publisher.P.Publish(ctx, constant.QueueVideoCatalogService, &broker.MessageType{
 		Key: constant.MessageTypeVideoEncodingCompleted,
 		Data: &VideoEncodingCompletedMessage{
 			Title:           data.Title,

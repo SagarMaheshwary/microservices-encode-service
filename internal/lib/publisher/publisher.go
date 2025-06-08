@@ -6,8 +6,13 @@ import (
 
 	amqplib "github.com/rabbitmq/amqp091-go"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/config"
+	"github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 var P *Publisher
@@ -16,24 +21,38 @@ type Publisher struct {
 	channel *amqplib.Channel
 }
 
-func (p *Publisher) Publish(queue string, message *broker.MessageType) error {
+func (p *Publisher) Publish(ctx context.Context, queue string, message *broker.MessageType) error {
+	tracer := otel.Tracer(constant.ServiceName)
+	ctx, span := tracer.Start(ctx, constant.TraceTypeRabbitMQPublish)
+	span.SetAttributes(attribute.String("message_key", message.Key))
+	defer span.End()
+
 	c := config.Conf.AMQP
 
 	q, err := p.declareQueue(queue)
-
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to declare queue")
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), c.PublishTimeout)
+	ctx, cancel := context.WithTimeout(ctx, c.PublishTimeout) // use passed-in context
 	defer cancel()
 
 	messageData, err := json.Marshal(&message)
-
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to marshal message")
 		logger.Error("Unable to parse message %v", message)
-
 		return err
+	}
+
+	// Inject trace context into headers
+	headers := amqplib.Table{}
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	for k, v := range carrier {
+		headers[k] = v
 	}
 
 	err = p.channel.PublishWithContext(
@@ -43,17 +62,19 @@ func (p *Publisher) Publish(queue string, message *broker.MessageType) error {
 		false,
 		false,
 		amqplib.Publishing{
-			ContentType: "application/json",
+			ContentType: constant.ContentTypeJSON,
 			Body:        messageData,
+			Headers:     headers,
 		},
 	)
-
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to publish message")
 		logger.Error("AMQP Unable to publish message %v", err)
-
 		return err
 	}
 
+	span.SetStatus(codes.Ok, "message published")
 	logger.Info("Message %q Sent", message.Key)
 
 	return nil

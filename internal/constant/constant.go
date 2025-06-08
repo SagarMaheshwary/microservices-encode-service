@@ -28,3 +28,10 @@ const (
 const TempVideosDownloadDirectory = "videos"
 
 const MPEGDASHManifestFile = "master.mpd"
+
+const ServiceName = "Encode Service"
+
+const (
+	TraceTypeRabbitMQConsume = "RabbitMQ Consume"
+	TraceTypeRabbitMQPublish = "RabbitMQ Publish"
+)
