@@ -34,4 +34,9 @@ RUN apt-get update && apt-get install ffmpeg -y
 
 RUN go install github.com/air-verse/air@v1.52.3
 
+# gRPC healthchecker for docker compose
+ADD https://github.com/grpc-ecosystem/grpc-health-probe/releases/latest/download/grpc_health_probe-linux-amd64 /bin/grpc-health-probe
+
+RUN chmod +x /bin/grpc-health-probe
+
 CMD ["air", "-c", ".air.toml"]
