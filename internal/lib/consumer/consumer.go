@@ -8,7 +8,6 @@ import (
 	amqplib "github.com/rabbitmq/amqp091-go"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/handler"
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/prometheus"
 	"go.opentelemetry.io/otel"
@@ -21,6 +20,11 @@ var C *Consumer
 
 type Consumer struct {
 	channel *amqplib.Channel
+}
+
+type MessageType struct {
+	Key  string `json:"key"`
+	Data any    `json:"data"`
 }
 
 func (c *Consumer) Consume() error {
@@ -44,25 +48,14 @@ func (c *Consumer) Consume() error {
 
 	logger.Info("AMQP listening on queue %q", constant.QueueEncodeService)
 
-	var forever chan struct{}
-
 	go func() {
 		for message := range messages {
-			// Extract tracing context from message headers
-			carrier := make(propagation.MapCarrier)
-			for k, v := range message.Headers {
-				if str, ok := v.(string); ok {
-					carrier[k] = str
-				}
-			}
-			ctx := otel.GetTextMapPropagator().Extract(context.Background(), carrier)
-
-			logger.Info("Consume headers %v", carrier)
+			ctx := contextWithOtelHeaders(message.Headers)
 
 			tracer := otel.Tracer(constant.ServiceName)
 			ctx, span := tracer.Start(ctx, constant.TraceTypeRabbitMQConsume)
 
-			m := broker.MessageType{}
+			m := MessageType{}
 			if err := json.Unmarshal(message.Body, &m); err != nil {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, "failed to unmarshal base message")
@@ -113,7 +106,6 @@ func (c *Consumer) Consume() error {
 		}
 	}()
 
-	<-forever
 	return nil
 }
 
@@ -140,4 +132,15 @@ func Init(channel *amqplib.Channel) *Consumer {
 	C = &Consumer{channel: channel}
 
 	return C
+}
+
+func contextWithOtelHeaders(headers amqplib.Table) context.Context {
+	carrier := make(propagation.MapCarrier)
+	for k, v := range headers {
+		if str, ok := v.(string); ok {
+			carrier[k] = str
+		}
+	}
+
+	return otel.GetTextMapPropagator().Extract(context.Background(), carrier)
 }

@@ -41,7 +41,7 @@ var (
 	})
 )
 
-func Connect() {
+func NewServer() *http.Server {
 	prometheuslib.MustRegister(
 		TotalMessagesCounter,
 		MessageProcessingDuration,
@@ -51,11 +51,18 @@ func Connect() {
 
 	url := config.Conf.Prometheus.URL
 
-	http.Handle("/metrics", promhttp.Handler())
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
 
-	logger.Info("Prometheus metrics endpoint running on %s", url)
+	logger.Info("Starting prometheus metrics server %s", url)
 
-	if err := http.ListenAndServe(url, nil); err != nil {
-		logger.Error("Failed to create http server for prometheus! %err", err)
+	server := &http.Server{Addr: url, Handler: mux}
+
+	return server
+}
+
+func Serve(server *http.Server) {
+	if err := server.ListenAndServe(); err != nil {
+		logger.Error("Prometheus http server error! %v", err)
 	}
 }

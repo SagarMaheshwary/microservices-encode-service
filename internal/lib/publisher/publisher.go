@@ -7,7 +7,6 @@ import (
 	amqplib "github.com/rabbitmq/amqp091-go"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/config"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -21,7 +20,12 @@ type Publisher struct {
 	channel *amqplib.Channel
 }
 
-func (p *Publisher) Publish(ctx context.Context, queue string, message *broker.MessageType) error {
+type MessageType struct {
+	Key  string `json:"key"`
+	Data any    `json:"data"`
+}
+
+func (p *Publisher) Publish(ctx context.Context, queue string, message *MessageType) error {
 	tracer := otel.Tracer(constant.ServiceName)
 	ctx, span := tracer.Start(ctx, constant.TraceTypeRabbitMQPublish)
 	span.SetAttributes(attribute.String("message_key", message.Key))

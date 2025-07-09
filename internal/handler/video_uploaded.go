@@ -12,7 +12,6 @@ import (
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/aws"
 	"golang.org/x/net/context"
 
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/broker"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/publisher"
 	ve "github.com/sagarmaheshwary/microservices-encode-service/internal/lib/video_encoder"
@@ -102,7 +101,7 @@ func ProcessVideoUploadedMessage(ctx context.Context, data *VideoUploadedMessage
 
 	duration, _ := strconv.ParseFloat(info.Duration, strconv.IntSize)
 
-	err = publisher.P.Publish(ctx, constant.QueueVideoCatalogService, &broker.MessageType{
+	err = publisher.P.Publish(ctx, constant.QueueVideoCatalogService, &publisher.MessageType{
 		Key: constant.MessageTypeVideoEncodingCompleted,
 		Data: &VideoEncodingCompletedMessage{
 			Title:           data.Title,

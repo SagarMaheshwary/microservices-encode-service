@@ -12,7 +12,20 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
-func Connect() {
+func NewServer() *grpc.Server {
+	server := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler(
+			otelgrpc.WithTracerProvider(otel.GetTracerProvider()),
+			otelgrpc.WithPropagators(otel.GetTextMapPropagator()),
+		)),
+	)
+
+	healthpb.RegisterHealthServer(server, &healthServer{})
+
+	return server
+}
+
+func Serve(server *grpc.Server) {
 	c := config.Conf.GRPCServer
 
 	address := fmt.Sprintf("%s:%d", c.Host, c.Port)
@@ -22,15 +35,6 @@ func Connect() {
 	if err != nil {
 		logger.Fatal("Failed to create tcp listner on %q: %v", address, err)
 	}
-
-	server := grpc.NewServer(
-		grpc.StatsHandler(otelgrpc.NewServerHandler(
-			otelgrpc.WithTracerProvider(otel.GetTracerProvider()),
-			otelgrpc.WithPropagators(otel.GetTextMapPropagator()),
-		)),
-	)
-
-	healthpb.RegisterHealthServer(server, &healthServer{})
 
 	logger.Info("gRPC server started on %q", address)
 
