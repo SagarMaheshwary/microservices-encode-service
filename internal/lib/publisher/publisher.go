@@ -40,7 +40,7 @@ func (p *Publisher) Publish(ctx context.Context, queue string, message *MessageT
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, c.PublishTimeout) // use passed-in context
+	ctx, cancel := context.WithTimeout(ctx, c.PublishTimeoutSeconds)
 	defer cancel()
 
 	messageData, err := json.Marshal(&message)

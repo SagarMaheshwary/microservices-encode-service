@@ -10,11 +10,11 @@ Encode service for the [Microservices](https://github.com/SagarMaheshwary/micros
 - Prometheus Client – Exports default and custom metrics for Prometheus server monitoring
 - AWS S3 – Stores processed video chunks and DASH manifests
 - FFmpeg – Handles video encoding and processing
+- Jaeger – Distributed request tracing
 
 ### SETUP
 
-Follow the instructions in the [README](https://github.com/SagarMaheshwary/microservices?tab=readme-ov-file#setup) of the main microservices repository to run this service along with others using Docker Compose.
-
+Follow the instructions in the [README](https://github.com/SagarMaheshwary/microservices?tab=readme-ov-file#setup) of the main microservices repository to run this service along with others using Docker Compose or Kubernetes (KIND).
 ### APIs (gRPC)
 
 | SERVICE                                                        | RPC   | BODY | METADATA | DESCRIPTION          |

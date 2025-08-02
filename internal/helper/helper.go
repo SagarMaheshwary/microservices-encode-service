@@ -18,7 +18,6 @@ func GetRootDir() string {
 
 func UniqueString(length int) string {
 	b := make([]byte, 32)
-
 	rand.Read(b)
 
 	return strings.ToLower(base32.StdEncoding.EncodeToString(b)[:length])

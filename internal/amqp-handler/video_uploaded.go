@@ -1,4 +1,4 @@
-package handler
+package amqphandler
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/publisher"
-	ve "github.com/sagarmaheshwary/microservices-encode-service/internal/lib/video_encoder"
+	ve "github.com/sagarmaheshwary/microservices-encode-service/internal/lib/video-encoder"
 )
 
 type VideoUploadedMessage struct {

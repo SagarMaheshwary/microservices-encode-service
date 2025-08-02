@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"os"
 	"os/signal"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/jaeger"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/prometheus"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -26,16 +29,24 @@ func main() {
 	go func() {
 		if err := broker.MaintainConnection(ctx); err != nil {
 			//Since the main purpose of this service is to receive rabbitmq messages and
-			//encode videos so we will exit the application if it fails to connect to rabbitmq..
+			//encode videos so we will exit the application if it fails to connect to rabbitmq.
 			stop()
 		}
 	}()
 
 	promServer := prometheus.NewServer()
-	go prometheus.Serve(promServer)
+	go func() {
+		if err := prometheus.Serve(promServer); err != nil && err != http.ErrServerClosed {
+			stop()
+		}
+	}()
 
 	grpcServer := server.NewServer()
-	go server.Serve(grpcServer)
+	go func() {
+		if err := server.Serve(grpcServer); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			stop()
+		}
+	}()
 
 	<-ctx.Done()
 

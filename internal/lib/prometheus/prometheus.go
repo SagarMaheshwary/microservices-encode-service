@@ -49,20 +49,24 @@ func NewServer() *http.Server {
 		ServiceHealth,
 	)
 
-	url := config.Conf.Prometheus.URL
-
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 
-	logger.Info("Starting prometheus metrics server %s", url)
-
-	server := &http.Server{Addr: url, Handler: mux}
+	server := &http.Server{
+		Addr:    config.Conf.Prometheus.URL,
+		Handler: mux,
+	}
 
 	return server
 }
 
-func Serve(server *http.Server) {
+func Serve(server *http.Server) error {
+	logger.Info("Starting Prometheus metrics server %s", server.Addr)
+
 	if err := server.ListenAndServe(); err != nil {
 		logger.Error("Prometheus http server error! %v", err)
+		return err
 	}
+
+	return nil
 }

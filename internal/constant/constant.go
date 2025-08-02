@@ -35,3 +35,5 @@ const (
 	TraceTypeRabbitMQConsume = "RabbitMQ Consume"
 	TraceTypeRabbitMQPublish = "RabbitMQ Publish"
 )
+
+const ExitFailure = 1

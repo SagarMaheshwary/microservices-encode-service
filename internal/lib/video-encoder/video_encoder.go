@@ -105,11 +105,13 @@ func EncodeVideoToResolution(inPath string, outPath string, args *EncodeVideoToR
 		"c:a": args.AudioCodec,
 	}
 
-	err := ffmpeglib.Input(inPath).Output(outPath, outArgs).OverWriteOutput().ErrorToStdOut().Run()
-
+	err := ffmpeglib.Input(inPath).
+		Output(outPath, outArgs).
+		OverWriteOutput().
+		ErrorToStdOut().
+		Run()
 	if err != nil {
 		logger.Error("FFMPEG encode video to resolution failed %v", err)
-
 		return err
 	}
 
@@ -125,8 +127,11 @@ func EncodeVideoToDash(in string, out string, args *EncodeVideoToDashArgs) error
 		"use_template": args.UseTemplate,
 	}
 
-	err := ffmpeglib.Input(in).Output(out, outArgs).OverWriteOutput().ErrorToStdOut().Run()
-
+	err := ffmpeglib.Input(in).
+		Output(out, outArgs).
+		OverWriteOutput().
+		ErrorToStdOut().
+		Run()
 	if err != nil {
 		logger.Error("FFMPEG encode video to dash failed %v", err)
 	}
@@ -148,10 +153,8 @@ func GetVideoInfo(in string) (*VideoInfo, error) {
 	}
 
 	o, err := exec.Command("ffprobe", args...).Output()
-
 	if err != nil {
 		logger.Error("FFprobe command failed %v", err)
-
 		return nil, err
 	}
 
@@ -161,7 +164,6 @@ func GetVideoInfo(in string) (*VideoInfo, error) {
 	}
 
 	m := new(FileOutput)
-
 	json.Unmarshal([]byte(o), &m)
 
 	logger.Info("Video %q Info: %v", in, m)

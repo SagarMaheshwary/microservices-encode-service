@@ -6,8 +6,8 @@ import (
 	"time"
 
 	amqplib "github.com/rabbitmq/amqp091-go"
+	amqphandler "github.com/sagarmaheshwary/microservices-encode-service/internal/amqp-handler"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/constant"
-	"github.com/sagarmaheshwary/microservices-encode-service/internal/handler"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/logger"
 	"github.com/sagarmaheshwary/microservices-encode-service/internal/lib/prometheus"
 	"go.opentelemetry.io/otel"
@@ -74,8 +74,8 @@ func (c *Consumer) Consume() error {
 			switch m.Key {
 			case constant.MessageTypeEncodeUploadedVideo:
 				type MessageType struct {
-					Key  string                       `json:"key"`
-					Data handler.VideoUploadedMessage `json:"data"`
+					Key  string                           `json:"key"`
+					Data amqphandler.VideoUploadedMessage `json:"data"`
 				}
 				d := new(MessageType)
 
@@ -86,7 +86,7 @@ func (c *Consumer) Consume() error {
 					continue
 				}
 
-				err := handler.ProcessVideoUploadedMessage(ctx, &d.Data)
+				err := amqphandler.ProcessVideoUploadedMessage(ctx, &d.Data)
 				if err == nil {
 					message.Ack(false)
 					prometheus.MessageProcessingDuration.WithLabelValues(m.Key).Observe(time.Since(start).Seconds())

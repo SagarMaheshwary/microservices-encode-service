@@ -25,20 +25,23 @@ func NewServer() *grpc.Server {
 	return server
 }
 
-func Serve(server *grpc.Server) {
+func Serve(server *grpc.Server) error {
 	c := config.Conf.GRPCServer
 
 	address := fmt.Sprintf("%s:%d", c.Host, c.Port)
 
 	listener, err := net.Listen("tcp", address)
-
 	if err != nil {
-		logger.Fatal("Failed to create tcp listner on %q: %v", address, err)
+		logger.Error("Failed to create tcp listner on %q: %v", address, err)
+		return err
 	}
 
-	logger.Info("gRPC server started on %q", address)
+	logger.Info("gRPC server starting on %q", address)
 
 	if err := server.Serve(listener); err != nil {
 		logger.Error("gRPC server failed to start %v", err)
+		return err
 	}
+
+	return nil
 }
